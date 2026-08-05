@@ -30,3 +30,53 @@ def detect_date_range(grid, header_row):
         return None
     col, start, end, _ = best
     return {"date_col": col, "row_start": start, "row_end": end}
+
+
+def save_mapping(conn, spreadsheet_id, label, header_row, date_col, row_start, row_end):
+    conn.execute(
+        """INSERT INTO docs
+             (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(spreadsheet_id) DO UPDATE SET
+             label=excluded.label,
+             header_row=excluded.header_row,
+             date_col=excluded.date_col,
+             date_row_start=excluded.date_row_start,
+             date_row_end=excluded.date_row_end""",
+        (spreadsheet_id, label, header_row, date_col, row_start, row_end),
+    )
+    conn.commit()
+    return get_doc(conn, spreadsheet_id)["id"]
+
+
+def get_doc(conn, spreadsheet_id):
+    row = conn.execute(
+        "SELECT * FROM docs WHERE spreadsheet_id = ?", (spreadsheet_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_docs(conn):
+    return [dict(r) for r in conn.execute("SELECT * FROM docs").fetchall()]
+
+
+def mark_tab_known(conn, doc_id, gid, title):
+    conn.execute(
+        "INSERT OR IGNORE INTO known_tabs (doc_id, gid, title) VALUES (?, ?, ?)",
+        (doc_id, gid, title),
+    )
+    conn.commit()
+
+
+def known_tab_gids(conn, doc_id):
+    rows = conn.execute(
+        "SELECT gid FROM known_tabs WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    return {r["gid"] for r in rows}
+
+
+def known_tabs(conn, doc_id):
+    rows = conn.execute(
+        "SELECT gid, title FROM known_tabs WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]

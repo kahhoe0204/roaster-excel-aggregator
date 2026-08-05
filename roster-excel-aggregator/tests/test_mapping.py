@@ -1,4 +1,5 @@
 from app import mapping
+from app import db as db_mod
 
 REAL_SAMPLE_GRID = [
     ["", "", "JOSEY", "TAN MIN", "NANTHINI"],
@@ -27,3 +28,32 @@ def test_detect_date_range_stops_at_broken_sequence():
     ]
     result = mapping.detect_date_range(grid, header_row=0)
     assert result == {"date_col": 0, "row_start": 1, "row_end": 2}
+
+def test_save_and_get_mapping(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    doc = mapping.get_doc(conn, "SHEET1")
+    assert doc["id"] == doc_id
+    assert doc["label"] == "Branch A"
+    assert doc["date_row_end"] == 31
+
+def test_save_mapping_upserts_on_same_spreadsheet_id(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    mapping.save_mapping(conn, "SHEET1", "Old Label", 0, 0, 1, 31)
+    mapping.save_mapping(conn, "SHEET1", "New Label", 0, 0, 1, 30)
+    docs = mapping.list_docs(conn)
+    assert len(docs) == 1
+    assert docs[0]["label"] == "New Label"
+
+def test_mark_and_list_known_tabs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    mapping.mark_tab_known(conn, doc_id, "111", "August")
+    mapping.mark_tab_known(conn, doc_id, "222", "September")
+    mapping.mark_tab_known(conn, doc_id, "111", "August")  # idempotent
+
+    gids = mapping.known_tab_gids(conn, doc_id)
+    assert gids == {"111", "222"}
+
+    tabs = {t["gid"]: t["title"] for t in mapping.known_tabs(conn, doc_id)}
+    assert tabs == {"111": "August", "222": "September"}
