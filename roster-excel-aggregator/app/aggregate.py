@@ -1,7 +1,6 @@
 import re
 
-_NUM_RE = re.compile(r"\d+(?:\.\d+)?")
-_CODE_RE = re.compile(r"[A-Za-z]+")
+_CODE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 
 
 def resolve_cell(cell, code_hours):
@@ -25,15 +24,10 @@ def resolve_cell(cell, code_hours):
     except ValueError:
         pass
 
-    # Look for explicit number after whitespace (prioritize space-separated numbers)
+    # Look for explicit number after whitespace (space-separated pattern like "P14 12.5")
     num_match = re.search(r"\s+(\d+(?:\.\d+)?)", text)
     if num_match:
         return float(num_match.group(1)), None
-
-    # Look for any explicit number in text
-    num_match = _NUM_RE.search(text)
-    if num_match:
-        return float(num_match.group()), None
 
     # Extract code and lookup
     code_match = _CODE_RE.match(text)

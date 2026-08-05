@@ -29,6 +29,16 @@ def test_resolve_cell_unmapped_code_is_flagged_not_guessed():
     assert aggregate.resolve_cell("PH", {"SJ": 12.0}) == (None, "PH")
 
 
+def test_resolve_cell_digit_bearing_unmapped_code():
+    # Regression: "P14" unmapped should be flagged, not guessed as 14 hours
+    assert aggregate.resolve_cell("P14", {}) == (None, "P14")
+
+
+def test_resolve_cell_digit_bearing_mapped_code():
+    # Regression: "P14" mapped should use lookup value, not embedded digit
+    assert aggregate.resolve_cell("P14", {"P14": 12.0}) == (12.0, None)
+
+
 def test_code_hours_roundtrip(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     assert aggregate.get_code_hours(conn) == {}
