@@ -1,4 +1,5 @@
 from app import aggregate, db as db_mod
+from app import mapping as mapping_mod
 
 
 def test_resolve_cell_numeric():
@@ -46,3 +47,51 @@ def test_code_hours_roundtrip(tmp_path):
     aggregate.set_code_hours(conn, "P14", 12.0)
     aggregate.set_code_hours(conn, "SJ", 8.0)  # overwrite
     assert aggregate.get_code_hours(conn) == {"SJ": 8.0, "P14": 12.0}
+
+
+def test_generate_report_matches_name_across_docs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    aggregate.set_code_hours(conn, "SJ", 12.0)
+
+    grid = [
+        ["", "", "Alice", "Bob"],
+        ["1-Aug", "Friday", "9.5", "SJ"],
+        ["2-Aug", "Saturday", "AL", ""],
+    ]
+    def fake_fetch_csv(spreadsheet_id, gid, timeout=15):
+        assert spreadsheet_id == "SHEET1"
+        assert gid == "111"
+        return grid
+
+    rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
+
+    assert rows == [
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August"},
+    ]
+    assert unmapped == []
+
+def test_generate_report_flags_unmapped_codes(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+
+    grid = [["", "Alice"], ["1-Aug", "XYZ"]]
+    rows, unmapped = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+    assert rows == []
+    assert unmapped == ["XYZ"]
+
+def test_generate_report_skips_docs_without_matching_name(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+
+    grid = [["", "Bob"], ["1-Aug", "9"]]
+    rows, unmapped = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+    assert rows == []
+    assert unmapped == []

@@ -1,5 +1,8 @@
 import re
 
+from . import mapping as mapping_mod
+from . import csv_fetch as csv_fetch_mod
+
 _CODE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 
 
@@ -52,3 +55,46 @@ def set_code_hours(conn, code, hours):
         (code, hours),
     )
     conn.commit()
+
+
+def generate_report(conn, name, fetch_csv=None):
+    """Aggregate hours for `name` across all known docs/tabs via live CSV fetch.
+
+    Returns (rows, unmapped_codes) where rows are
+    {"name", "date", "hours", "source"} dicts and unmapped_codes is a
+    sorted list of distinct codes with no hours mapping.
+    """
+    fetch = fetch_csv or csv_fetch_mod.fetch_csv
+    code_hours = get_code_hours(conn)
+    rows = []
+    unmapped = set()
+    name_lower = name.strip().lower()
+
+    for doc in mapping_mod.list_docs(conn):
+        for tab in mapping_mod.known_tabs(conn, doc["id"]):
+            grid = fetch(doc["spreadsheet_id"], tab["gid"])
+            header = grid[doc["header_row"]] if doc["header_row"] < len(grid) else []
+            name_col = next(
+                (i for i, cell in enumerate(header) if cell.strip().lower() == name_lower),
+                None,
+            )
+            if name_col is None:
+                continue
+            for r in range(doc["date_row_start"], doc["date_row_end"] + 1):
+                if r >= len(grid):
+                    break
+                row = grid[r]
+                date_cell = row[doc["date_col"]] if doc["date_col"] < len(row) else ""
+                value_cell = row[name_col] if name_col < len(row) else ""
+                hours, unmapped_code = resolve_cell(value_cell, code_hours)
+                if unmapped_code:
+                    unmapped.add(unmapped_code)
+                if hours is None:
+                    continue
+                rows.append({
+                    "name": name,
+                    "date": date_cell.strip(),
+                    "hours": hours,
+                    "source": f"{doc['label']} / {tab['title']}",
+                })
+    return rows, sorted(unmapped)
