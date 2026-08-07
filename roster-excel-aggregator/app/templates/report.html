@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roster report</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+    form { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; }
+    input[type=text] { flex: 1; padding: .5rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: .4rem .6rem; text-align: left; }
+    .unmapped { color: #b00020; }
+    .top { display: flex; justify-content: space-between; align-items: baseline; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>Roster report</h1>
+    <a href="/logout">Sign out</a>
+  </div>
+  <form method="get" action="/">
+    <input type="text" name="name" value="{{ name }}" placeholder="Employee name" autofocus>
+    <button type="submit">Generate</button>
+  </form>
+
+  {% if name %}
+    {% if unmapped %}
+      <p class="unmapped">Unmapped codes (no hours): {{ unmapped | join(", ") }}</p>
+    {% endif %}
+    {% if rows %}
+      <p><a href="/report.xlsx?name={{ name | urlencode }}">Download .xlsx</a></p>
+      <table>
+        <thead><tr><th>Name</th><th>Date</th><th>Hours</th><th>Source</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ row.date }}</td>
+            <td>{{ row.hours }}</td>
+            <td>{{ row.source }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No hours found for &ldquo;{{ name }}&rdquo;.</p>
+    {% endif %}
+  {% endif %}
+</body>
+</html>

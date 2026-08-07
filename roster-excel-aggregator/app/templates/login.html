@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 4rem auto; padding: 0 1rem; }
+    label { display: block; margin: .75rem 0 .25rem; }
+    input { width: 100%; padding: .5rem; box-sizing: border-box; }
+    button { margin-top: 1rem; padding: .5rem 1rem; }
+    .error { color: #b00020; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Roster report</h1>
+  <form method="post" action="/login">
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+  </form>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+</body>
+</html>
