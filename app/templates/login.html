@@ -5,23 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in</title>
   <link rel="icon" href="/static/favicon.png">
-  <style>
-    body { font: 16px system-ui, sans-serif; max-width: 22rem; margin: 4rem auto; padding: 0 1rem; }
-    label { display: block; margin: .75rem 0 .25rem; }
-    input { width: 100%; padding: .5rem; box-sizing: border-box; }
-    button { margin-top: 1rem; padding: .5rem 1rem; }
-    .error { color: #b00020; margin-top: .5rem; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h1>Roster report</h1>
-  <form method="post" action="/login">
-    <label for="username">Username</label>
-    <input id="username" name="username" autocomplete="username" required>
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" required>
-    <button type="submit">Sign in</button>
-  </form>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <div class="ledger-card">
+    <h1 style="margin-top:0">Roster Ledger</h1>
+    <hr class="rule">
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post" action="/login">
+      <input name="username" placeholder="Username" autocomplete="username" required autofocus>
+      <input name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button type="submit" class="stamp-btn primary">Sign in</button>
+    </form>
+  </div>
 </body>
 </html>
