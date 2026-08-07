@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -11,6 +12,7 @@ from . import aggregate, al, auth, config, db, excel_export
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY)
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
