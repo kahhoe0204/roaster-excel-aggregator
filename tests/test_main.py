@@ -22,8 +22,15 @@ def test_index_requires_login(tmp_path, monkeypatch):
 
 def test_bad_credentials_rejected(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
-    resp = client.post("/login", data={"username": "manager", "password": "wrong"})
-    assert resp.status_code == 401
+    resp = client.post(
+        "/login", data={"username": "manager", "password": "wrong"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login?error=1"
+
+    resp2 = client.get(resp.headers["location"])
+    assert resp2.status_code == 200
+    assert "Invalid credentials" in resp2.text
 
 
 def test_login_then_index(tmp_path, monkeypatch):
