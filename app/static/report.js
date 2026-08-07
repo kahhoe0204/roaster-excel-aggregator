@@ -15,7 +15,7 @@ function NameForm({ name, onSubmit }) {
     'form',
     {
       onSubmit: (ev) => { ev.preventDefault(); onSubmit(value.trim()); },
-      style: { display: 'flex', gap: '.5rem', marginBottom: '1.5rem' },
+      style: { display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1.5rem' },
     },
     e('input', {
       type: 'text',
@@ -26,30 +26,34 @@ function NameForm({ name, onSubmit }) {
       onChange: (ev) => setValue(ev.target.value),
       style: { flex: 1, marginBottom: 0 },
     }),
-    e('button', { type: 'submit', className: 'stamp-btn primary' }, 'View')
+    e('button', { type: 'submit', className: 'btn' }, 'View')
   );
 }
 
 function HoursTable({ rows }) {
-  if (!rows.length) return e('p', null, 'No hours found.');
+  if (!rows.length) return e('p', { className: 'ledger-empty' }, 'No hours on record.');
   return e(
-    'table',
-    { className: 'ledger' },
+    'div',
+    { className: 'table-wrap' },
     e(
-      'thead',
-      null,
-      e('tr', null, e('th', null, 'Date'), e('th', null, 'Hours'), e('th', null, 'Source'))
-    ),
-    e(
-      'tbody',
-      null,
-      rows.map((r, i) =>
-        e(
-          'tr',
-          { key: i },
-          e('td', null, r.date),
-          e('td', { className: 'num' }, r.hours.toFixed(2)),
-          e('td', null, r.source)
+      'table',
+      { className: 'ledger' },
+      e(
+        'thead',
+        null,
+        e('tr', null, e('th', null, 'Date'), e('th', null, 'Hours'), e('th', null, 'Source'))
+      ),
+      e(
+        'tbody',
+        null,
+        rows.map((r, i) =>
+          e(
+            'tr',
+            { key: i },
+            e('td', null, r.date),
+            e('td', { className: 'num' }, r.hours.toFixed(2)),
+            e('td', null, r.source)
+          )
         )
       )
     )
@@ -58,7 +62,7 @@ function HoursTable({ rows }) {
 
 function UnmappedWarning({ codes }) {
   if (!codes.length) return null;
-  return e('div', { className: 'unmapped-stamp' }, `UNMAPPED: ${codes.join(', ')}`);
+  return e('div', { className: 'alert alert-warning' }, `UNMAPPED: ${codes.join(', ')}`);
 }
 
 function AlDatesPanel({ name, alDates, onChange }) {
@@ -94,11 +98,11 @@ function AlDatesPanel({ name, alDates, onChange }) {
 
   return e(
     'div',
-    { style: { marginBottom: '1.5rem' } },
+    { className: 'alert alert-info' },
     e('h2', null, 'Upcoming AL'),
     e(
       'form',
-      { onSubmit: add, style: { display: 'flex', gap: '.5rem', marginBottom: '.75rem' } },
+      { onSubmit: add, style: { display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '.75rem' } },
       e('input', {
         type: 'date',
         value: date,
@@ -115,32 +119,36 @@ function AlDatesPanel({ name, alDates, onChange }) {
         onChange: (ev) => setNote(ev.target.value),
         style: { marginBottom: 0, flex: 1 },
       }),
-      e('button', { type: 'submit', className: 'stamp-btn' }, 'Add')
+      e('button', { type: 'submit', className: 'btn' }, 'Add')
     ),
     alDates.length
       ? e(
-          'table',
-          { className: 'ledger' },
-          e('thead', null, e('tr', null, e('th', null, 'Date'), e('th', null, 'Note'), e('th', null, ''))),
+          'div',
+          { className: 'table-wrap' },
           e(
-            'tbody',
-            null,
-            alDates.map((a) =>
-              e(
-                'tr',
-                { key: a.id },
-                e('td', null, a.date),
-                e('td', null, a.note),
+            'table',
+            { className: 'ledger' },
+            e('thead', null, e('tr', null, e('th', null, 'Date'), e('th', null, 'Note'), e('th', null, ''))),
+            e(
+              'tbody',
+              null,
+              alDates.map((a) =>
                 e(
-                  'td',
-                  null,
-                  e('button', { type: 'button', className: 'stamp-btn', onClick: () => remove(a.id) }, 'Remove')
+                  'tr',
+                  { key: a.id },
+                  e('td', null, a.date),
+                  e('td', null, a.note),
+                  e(
+                    'td',
+                    null,
+                    e('button', { type: 'button', className: 'btn', onClick: () => remove(a.id) }, 'Remove')
+                  )
                 )
               )
             )
           )
         )
-      : e('p', null, 'No AL dates recorded.')
+      : e('p', { className: 'ledger-empty' }, 'No AL dates recorded.')
   );
 }
 
@@ -150,8 +158,7 @@ function DownloadButton({ name }) {
     'a',
     {
       href: `/report.xlsx?name=${encodeURIComponent(name)}`,
-      className: 'stamp-btn primary',
-      style: { display: 'inline-block' },
+      className: 'btn btn-primary',
     },
     'Download .xlsx'
   );

@@ -12,13 +12,18 @@
 <body>
   <div class="ledger-card">
     <h1 style="margin-top:0">Roster Ledger</h1>
-    <hr class="rule">
+    <hr class="roast-rule">
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
     <form method="post" action="/login">
-      <input name="username" placeholder="Username" aria-label="Username" autocomplete="username" required autofocus>
+      <input name="username" type="text" placeholder="Username" aria-label="Username" autocomplete="username" required autofocus>
       <input name="password" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" required>
-      <button type="submit" class="stamp-btn primary">Sign in</button>
+      <button type="submit" class="btn btn-primary">Sign in</button>
     </form>
   </div>
+  <script>
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) location.reload();
+    });
+  </script>
 </body>
 </html>
