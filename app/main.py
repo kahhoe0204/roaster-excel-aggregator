@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import Body, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -53,44 +53,55 @@ def logout(request: Request):
 def index(request: Request, name: str = ""):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
-    rows, unmapped, al_dates = [], [], []
-    name = name.strip()
-    if name:
-        conn = db.init_db(config.DB_PATH)
-        try:
-            rows, unmapped = aggregate.generate_report(conn, name)
-            al_dates = al.list_al_dates(conn, name)
-        finally:
-            conn.close()
-    return templates.TemplateResponse(
-        request,
-        "report.html",
-        {"name": name, "rows": rows, "unmapped": unmapped, "al_dates": al_dates},
-    )
+    return templates.TemplateResponse(request, "report.html", {"name": name.strip()})
 
 
-@app.post("/al")
-def add_al(request: Request, name: str = Form(...), date: str = Form(...), note: str = Form("")):
+def _report_payload(conn, name):
+    rows, unmapped = aggregate.generate_report(conn, name)
+    al_dates = al.list_al_dates(conn, name)
+    return {"rows": rows, "unmapped": unmapped, "al_dates": al_dates}
+
+
+@app.get("/api/report")
+def api_report(request: Request, name: str = ""):
     if not _user(request):
-        return RedirectResponse("/login", status_code=303)
+        raise HTTPException(status_code=401)
+    name = name.strip()
+    if not name:
+        return {"rows": [], "unmapped": [], "al_dates": []}
     conn = db.init_db(config.DB_PATH)
     try:
-        al.add_al_date(conn, name.strip(), date.strip(), note.strip())
+        return _report_payload(conn, name)
     finally:
         conn.close()
-    return RedirectResponse(f"/?name={name.strip()}", status_code=303)
 
 
-@app.post("/al/{al_id}/delete")
-def delete_al(request: Request, al_id: int, name: str = Form(...)):
+@app.post("/api/al")
+def api_add_al(request: Request, payload: dict = Body(...)):
     if not _user(request):
-        return RedirectResponse("/login", status_code=303)
+        raise HTTPException(status_code=401)
+    name = payload.get("name", "").strip()
+    date = payload.get("date", "").strip()
+    note = payload.get("note", "").strip()
+    conn = db.init_db(config.DB_PATH)
+    try:
+        al.add_al_date(conn, name, date, note)
+        return _report_payload(conn, name)
+    finally:
+        conn.close()
+
+
+@app.post("/api/al/{al_id}/delete")
+def api_delete_al(request: Request, al_id: int, payload: dict = Body(...)):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    name = payload.get("name", "").strip()
     conn = db.init_db(config.DB_PATH)
     try:
         al.delete_al_date(conn, al_id)
+        return _report_payload(conn, name)
     finally:
         conn.close()
-    return RedirectResponse(f"/?name={name.strip()}", status_code=303)
 
 
 @app.get("/report.xlsx")
