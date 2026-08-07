@@ -1,5 +1,13 @@
-# AI-tooling / planning docs — not committed per global policy
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+accounts.json
+
+# local env / AI tooling
+.env
 .claude/
 .superpowers/
 CLAUDE.md
+AGENTS.md
 docs/superpowers/
