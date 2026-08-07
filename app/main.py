@@ -2,13 +2,25 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import Body, FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import aggregate, al, auth, config, db, excel_export
+
+
+class AlCreate(BaseModel):
+    name: str
+    date: str
+    note: str = ""
+
+
+class AlAction(BaseModel):
+    name: str
+
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY)
@@ -77,33 +89,33 @@ def api_report(request: Request, name: str = ""):
 
 
 @app.post("/api/al")
-def api_add_al(request: Request, payload: dict = Body(...)):
+def api_add_al(request: Request, payload: AlCreate):
     if not _user(request):
         raise HTTPException(status_code=401)
-    name = payload.get("name", "").strip()
+    name = payload.name.strip()
     if not name:
-        return {"rows": [], "unmapped": [], "al_dates": []}
-    date = payload.get("date", "").strip()
-    note = payload.get("note", "").strip()
+        return {"al_dates": []}
+    date = payload.date.strip()
+    note = payload.note.strip()
     conn = db.init_db(config.DB_PATH)
     try:
         al.add_al_date(conn, name, date, note)
-        return _report_payload(conn, name)
+        return {"al_dates": al.list_al_dates(conn, name)}
     finally:
         conn.close()
 
 
 @app.post("/api/al/{al_id}/delete")
-def api_delete_al(request: Request, al_id: int, payload: dict = Body(...)):
+def api_delete_al(request: Request, al_id: int, payload: AlAction):
     if not _user(request):
         raise HTTPException(status_code=401)
-    name = payload.get("name", "").strip()
+    name = payload.name.strip()
     if not name:
-        return {"rows": [], "unmapped": [], "al_dates": []}
+        return {"al_dates": []}
     conn = db.init_db(config.DB_PATH)
     try:
         al.delete_al_date(conn, al_id)
-        return _report_payload(conn, name)
+        return {"al_dates": al.list_al_dates(conn, name)}
     finally:
         conn.close()
 

@@ -30,7 +30,7 @@ def test_login_then_index(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.post("/login", data={"username": "manager", "password": "secret"})
     assert resp.status_code == 200
-    assert "Roster report" in resp.text
+    assert "Roster Ledger" in resp.text
     # session persists on the client; direct index access now allowed
     assert client.get("/", follow_redirects=False).status_code == 200
 
@@ -73,7 +73,7 @@ def test_api_add_al_empty_name_returns_empty(tmp_path, monkeypatch):
 
     resp = client.post("/api/al", json={"name": "", "date": "2026-09-01", "note": "trip"})
     assert resp.status_code == 200
-    assert resp.json() == {"rows": [], "unmapped": [], "al_dates": []}
+    assert resp.json() == {"al_dates": []}
 
     # Verify AL date was not persisted by checking a subsequent add with a real name
     resp_alice = client.post(
@@ -98,7 +98,7 @@ def test_api_delete_al_empty_name_returns_empty(tmp_path, monkeypatch):
     # Try to delete with empty name; should return empty shape and NOT delete the AL date
     resp_delete = client.post(f"/api/al/{al_id}/delete", json={"name": ""})
     assert resp_delete.status_code == 200
-    assert resp_delete.json() == {"rows": [], "unmapped": [], "al_dates": []}
+    assert resp_delete.json() == {"al_dates": []}
 
     # Verify AL date was NOT deleted by checking with the real name
     resp_check = client.get("/api/report", params={"name": "Alice"})

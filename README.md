@@ -50,5 +50,5 @@ Add to crontab (`crontab -e`):
 2. Paste a Google Sheet's spreadsheet ID (the long ID in its URL), click "Load tabs", pick a tab.
 3. Click the row that holds staff names, give the doc a label, save — the date range auto-detects.
 4. Repeat for each roster doc.
-5. Type a staff name, click "Generate .xlsx" — downloads worked hours across every configured doc.
-6. If a shift code isn't recognized, it's skipped and listed in the `X-Unmapped-Codes` response header — add it under "Edit code → hours table" with its hour value, then regenerate.
+5. Type a staff name and click "View" to see their hours table on the page; any unrecognized shift codes show as a red warning callout — add them under "Edit code → hours table" with their hour value, then reload.
+6. Click "Download .xlsx" to get worked hours across every configured doc as a file.

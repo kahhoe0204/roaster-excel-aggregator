@@ -1,5 +1,14 @@
 const e = React.createElement;
 
+function toJson(r) {
+  if (r.status === 401) {
+    location.href = '/login';
+    throw new Error('unauthorized');
+  }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
 function NameForm({ name, onSubmit }) {
   const [value, setValue] = React.useState(name);
   return e(
@@ -13,6 +22,7 @@ function NameForm({ name, onSubmit }) {
       value,
       autoFocus: true,
       placeholder: 'Employee name',
+      'aria-label': 'Employee name',
       onChange: (ev) => setValue(ev.target.value),
       style: { flex: 1, marginBottom: 0 },
     }),
@@ -62,7 +72,7 @@ function AlDatesPanel({ name, alDates, onChange }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, date, note }),
     })
-      .then((r) => r.json())
+      .then(toJson)
       .then((data) => {
         onChange(data.al_dates);
         setDate('');
@@ -77,7 +87,7 @@ function AlDatesPanel({ name, alDates, onChange }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     })
-      .then((r) => r.json())
+      .then(toJson)
       .then((data) => onChange(data.al_dates))
       .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
   }
@@ -93,6 +103,7 @@ function AlDatesPanel({ name, alDates, onChange }) {
         type: 'date',
         value: date,
         required: true,
+        'aria-label': 'AL date',
         onChange: (ev) => setDate(ev.target.value),
         style: { marginBottom: 0, flex: '0 0 auto' },
       }),
@@ -100,6 +111,7 @@ function AlDatesPanel({ name, alDates, onChange }) {
         type: 'text',
         value: note,
         placeholder: 'Note (optional)',
+        'aria-label': 'Note',
         onChange: (ev) => setNote(ev.target.value),
         style: { marginBottom: 0, flex: 1 },
       }),
@@ -162,7 +174,7 @@ function App() {
       return;
     }
     fetch(`/api/report?name=${encodeURIComponent(n)}`)
-      .then((r) => r.json())
+      .then(toJson)
       .then((data) => {
         setRows(data.rows);
         setUnmapped(data.unmapped);
