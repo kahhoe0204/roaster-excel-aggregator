@@ -81,6 +81,8 @@ def api_add_al(request: Request, payload: dict = Body(...)):
     if not _user(request):
         raise HTTPException(status_code=401)
     name = payload.get("name", "").strip()
+    if not name:
+        return {"rows": [], "unmapped": [], "al_dates": []}
     date = payload.get("date", "").strip()
     note = payload.get("note", "").strip()
     conn = db.init_db(config.DB_PATH)
@@ -96,6 +98,8 @@ def api_delete_al(request: Request, al_id: int, payload: dict = Body(...)):
     if not _user(request):
         raise HTTPException(status_code=401)
     name = payload.get("name", "").strip()
+    if not name:
+        return {"rows": [], "unmapped": [], "al_dates": []}
     conn = db.init_db(config.DB_PATH)
     try:
         al.delete_al_date(conn, al_id)
