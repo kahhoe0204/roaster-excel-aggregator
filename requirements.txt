@@ -6,5 +6,6 @@ itsdangerous
 requests
 openpyxl
 bcrypt
+libsql
 pytest
 httpx

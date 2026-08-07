@@ -1,3 +1,5 @@
+import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -13,6 +15,9 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 def _accounts():
+    accounts_json = os.environ.get("ACCOUNTS_JSON")
+    if accounts_json:
+        return json.loads(accounts_json)
     return auth.load_accounts(config.ACCOUNTS_FILE)
 
 
