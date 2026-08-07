@@ -67,7 +67,8 @@ function AlDatesPanel({ name, alDates, onChange }) {
         onChange(data.al_dates);
         setDate('');
         setNote('');
-      });
+      })
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
   }
 
   function remove(id) {
@@ -77,7 +78,8 @@ function AlDatesPanel({ name, alDates, onChange }) {
       body: JSON.stringify({ name }),
     })
       .then((r) => r.json())
-      .then((data) => onChange(data.al_dates));
+      .then((data) => onChange(data.al_dates))
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
   }
 
   return e(
@@ -165,7 +167,8 @@ function App() {
         setRows(data.rows);
         setUnmapped(data.unmapped);
         setAlDates(data.al_dates);
-      });
+      })
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
   }
 
   React.useEffect(() => {
