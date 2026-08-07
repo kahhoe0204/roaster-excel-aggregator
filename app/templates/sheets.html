@@ -37,15 +37,20 @@
 
     <h2>Add a doc</h2>
     <div style="display:flex; gap:.5rem; margin-bottom:1rem;">
-      <input type="text" id="spreadsheet-id" placeholder="Spreadsheet ID" aria-label="Spreadsheet ID" style="flex:1; margin-bottom:0;">
+      <input type="text" id="spreadsheet-id" placeholder="Spreadsheet link or ID" aria-label="Spreadsheet link or ID" style="flex:1; margin-bottom:0;">
       <button type="button" class="btn btn-primary" onclick="loadTabs()">Load tabs</button>
     </div>
     <div id="tabs"></div>
   </div>
 
   <script>
+    function extractSpreadsheetId(value) {
+      const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : value;
+    }
+
     async function loadTabs() {
-      const spreadsheetId = document.getElementById('spreadsheet-id').value.trim();
+      const spreadsheetId = extractSpreadsheetId(document.getElementById('spreadsheet-id').value.trim());
       if (!spreadsheetId) return;
       const resp = await fetch('/api/sheets/tabs', {
         method: 'POST',
