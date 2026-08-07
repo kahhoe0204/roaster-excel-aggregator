@@ -1,0 +1,26 @@
+[project]
+name = "roster-excel-aggregator"
+version = "0.1.0"
+description = "Internal web app to aggregate staff worked hours across Google Sheets roster docs"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "jinja2",
+    "python-multipart",
+    "itsdangerous",
+    "requests",
+    "openpyxl",
+    "bcrypt",
+    "libsql",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0"]
+build-backend = "poetry.core.masonry.api"
