@@ -106,3 +106,77 @@ def test_api_delete_al_empty_name_returns_empty(tmp_path, monkeypatch):
     assert len(resp_check.json()["al_dates"]) == 1
     assert resp_check.json()["al_dates"][0]["id"] == al_id
     assert resp_check.json()["al_dates"][0]["date"] == "2026-09-01"
+
+
+def test_sheets_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/sheets", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+
+
+def test_api_sheets_tabs_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/api/sheets/tabs", json={"spreadsheet_id": "SHEET1"})
+    assert resp.status_code == 401
+
+
+def test_api_sheets_tabs_returns_tabs(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    monkeypatch.setattr(
+        main.sheets, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [{"gid": "111", "title": "August"}],
+    )
+
+    resp = client.post("/api/sheets/tabs", json={"spreadsheet_id": "SHEET1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"tabs": [{"gid": "111", "title": "August"}]}
+
+
+def test_configure_saves_mapping_and_lists_doc(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    grid = [
+        ["", "", "Alice", "Bob"],
+        ["1-Aug", "Friday", "9.5", "SJ"],
+        ["2-Aug", "Saturday", "FULL", ""],
+    ]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: grid)
+    monkeypatch.setattr(
+        main.sheets, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [{"gid": "111", "title": "August"}],
+    )
+
+    resp = client.get("/sheets")
+    assert resp.status_code == 200
+    assert "No docs configured" in resp.text
+
+    resp2 = client.post(
+        "/sheets/SHEET1/configure",
+        data={"gid": "111", "label": "Branch A", "header_row": "0"},
+        follow_redirects=False,
+    )
+    assert resp2.status_code == 303
+    assert resp2.headers["location"] == "/sheets"
+
+    resp3 = client.get("/sheets")
+    assert resp3.status_code == 200
+    assert "Branch A" in resp3.text
+    assert "SHEET1" in resp3.text
+
+
+def test_configure_rejects_ungenerated_date_range(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    grid = [["", "Alice"], ["not-a-date", "9"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: grid)
+
+    resp = client.post(
+        "/sheets/SHEET1/configure",
+        data={"gid": "111", "label": "Branch A", "header_row": "0"},
+    )
+    assert resp.status_code == 400

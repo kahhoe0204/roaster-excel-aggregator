@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configure sheet</title>
+  <link rel="icon" href="/static/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="top">
+    <h1>Configure: {{ spreadsheet_id }}</h1>
+    <a href="/sheets" class="btn">Back</a>
+  </div>
+  <hr class="roast-rule container">
+
+  <div class="container">
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <p>Click the row that holds staff names.</p>
+    <div class="table-wrap">
+      <table class="ledger" id="grid">
+        {% for row in grid %}
+        <tr onclick="selectRow({{ loop.index0 }})">
+          {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <form method="post" action="/sheets/{{ spreadsheet_id }}/configure">
+      <input type="hidden" name="gid" value="{{ gid }}">
+      <input type="hidden" name="header_row" id="header_row" value="0">
+      <input type="text" name="label" placeholder="Doc label" aria-label="Doc label" required>
+      <button type="submit" class="btn btn-primary">Save mapping</button>
+    </form>
+  </div>
+
+  <script>
+    function selectRow(i) {
+      document.getElementById('header_row').value = i;
+      document.querySelectorAll('#grid tr').forEach((r) => { r.style.background = ''; });
+      document.querySelectorAll('#grid tr')[i].style.background = 'var(--ledger-line)';
+    }
+  </script>
+</body>
+</html>

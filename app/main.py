@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import aggregate, al, auth, config, db, excel_export
+from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets
 
 
 class AlCreate(BaseModel):
@@ -20,6 +20,10 @@ class AlCreate(BaseModel):
 
 class AlAction(BaseModel):
     name: str
+
+
+class SheetTabsRequest(BaseModel):
+    spreadsheet_id: str
 
 
 app = FastAPI()
@@ -40,8 +44,13 @@ def _user(request):
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_form(request: Request):
-    return templates.TemplateResponse(request, "login.html", {"error": None})
+def login_form(request: Request, error: str = ""):
+    if _user(request):
+        return RedirectResponse("/", status_code=303)
+    message = "Invalid credentials" if error else None
+    response = templates.TemplateResponse(request, "login.html", {"error": message})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/login")
@@ -50,9 +59,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     if hashed and auth.verify_password(password, hashed):
         request.session["user"] = username
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse(
-        request, "login.html", {"error": "Invalid credentials"}, status_code=401
-    )
+    return RedirectResponse("/login?error=1", status_code=303)
 
 
 @app.get("/logout")
@@ -65,7 +72,9 @@ def logout(request: Request):
 def index(request: Request, name: str = ""):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
-    return templates.TemplateResponse(request, "report.html", {"name": name.strip()})
+    response = templates.TemplateResponse(request, "report.html", {"name": name.strip()})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _report_payload(conn, name):
@@ -138,3 +147,77 @@ def report_xlsx(request: Request, name: str = ""):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{name}.xlsx"'},
     )
+
+
+@app.get("/sheets", response_class=HTMLResponse)
+def sheets_page(request: Request):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        docs = mapping.list_docs(conn)
+    finally:
+        conn.close()
+    return templates.TemplateResponse(request, "sheets.html", {"docs": docs})
+
+
+@app.post("/api/sheets/tabs")
+def api_sheets_tabs(request: Request, payload: SheetTabsRequest):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    tabs = sheets.list_tabs(payload.spreadsheet_id.strip(), config.GOOGLE_API_KEY)
+    return {"tabs": tabs}
+
+
+@app.get("/sheets/{spreadsheet_id}/configure", response_class=HTMLResponse)
+def configure_form(request: Request, spreadsheet_id: str, gid: str):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    grid = csv_fetch.fetch_csv(spreadsheet_id, gid)
+    return templates.TemplateResponse(
+        request,
+        "configure.html",
+        {"spreadsheet_id": spreadsheet_id, "gid": gid, "grid": grid[:15], "error": None},
+    )
+
+
+@app.post("/sheets/{spreadsheet_id}/configure")
+def configure_submit(
+    request: Request,
+    spreadsheet_id: str,
+    gid: str = Form(...),
+    label: str = Form(...),
+    header_row: int = Form(...),
+):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    grid = csv_fetch.fetch_csv(spreadsheet_id, gid)
+    detected = mapping.detect_date_range(grid, header_row)
+    if detected is None:
+        return templates.TemplateResponse(
+            request,
+            "configure.html",
+            {
+                "spreadsheet_id": spreadsheet_id,
+                "gid": gid,
+                "grid": grid[:15],
+                "error": "Could not auto-detect a date column from that row.",
+            },
+            status_code=400,
+        )
+    conn = db.init_db(config.DB_PATH)
+    try:
+        doc_id = mapping.save_mapping(
+            conn,
+            spreadsheet_id,
+            label,
+            header_row,
+            detected["date_col"],
+            detected["row_start"],
+            detected["row_end"],
+        )
+        tabs = {t["gid"]: t["title"] for t in sheets.list_tabs(spreadsheet_id, config.GOOGLE_API_KEY)}
+        mapping.mark_tab_known(conn, doc_id, gid, tabs.get(gid, gid))
+    finally:
+        conn.close()
+    return RedirectResponse("/sheets", status_code=303)
