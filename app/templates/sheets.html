@@ -13,6 +13,7 @@
   <div class="top">
     <h1>Configured Docs</h1>
     <div>
+      <a href="/codes" class="btn">Codes</a>
       <a href="/" class="btn">Report</a>
       <a href="/logout" class="btn">Sign out</a>
     </div>
@@ -20,6 +21,11 @@
   <hr class="roast-rule container">
 
   <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:.75rem;">
+      <h2 style="margin:0;">Docs</h2>
+      <button type="button" class="btn" onclick="syncNow()">Sync now</button>
+    </div>
+    <p id="sync-status" class="ledger-empty" style="display:none;"></p>
     {% if docs %}
       <div class="table-wrap">
         <table class="ledger">
@@ -47,6 +53,19 @@
     function extractSpreadsheetId(value) {
       const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       return match ? match[1] : value;
+    }
+
+    async function syncNow() {
+      const status = document.getElementById('sync-status');
+      status.style.display = 'block';
+      status.textContent = 'Syncing…';
+      const resp = await fetch('/api/sync', { method: 'POST' });
+      if (!resp.ok) { status.textContent = 'Sync failed.'; return; }
+      const data = await resp.json();
+      const total = Object.values(data.new_tabs).reduce((n, tabs) => n + tabs.length, 0);
+      status.textContent = total
+        ? `Found ${total} new tab(s) — reload to see them.`
+        : 'No new tabs found.';
     }
 
     async function loadTabs() {

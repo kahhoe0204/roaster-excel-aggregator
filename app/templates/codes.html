@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code &rarr; hours</title>
+  <link rel="icon" href="/static/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="top">
+    <h1>Code &rarr; Hours</h1>
+    <div>
+      <a href="/sheets" class="btn">Docs</a>
+      <a href="/" class="btn">Report</a>
+      <a href="/logout" class="btn">Sign out</a>
+    </div>
+  </div>
+  <hr class="roast-rule container">
+
+  <div class="container">
+    {% if codes %}
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead><tr><th>Code</th><th>Hours</th></tr></thead>
+          <tbody>
+            {% for code, hours in codes.items() %}
+            <tr><td>{{ code }}</td><td class="num">{{ hours }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="ledger-empty">No codes configured yet.</p>
+    {% endif %}
+
+    <h2>Add / update a code</h2>
+    <form method="post" action="/codes" style="display:flex; gap:.5rem;">
+      <input type="text" name="code" placeholder="Code (e.g. SJ)" aria-label="Code" required style="flex:1; margin-bottom:0;">
+      <input type="number" name="hours" step="0.5" placeholder="Hours" aria-label="Hours" required style="flex:1; margin-bottom:0;">
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+  </div>
+</body>
+</html>

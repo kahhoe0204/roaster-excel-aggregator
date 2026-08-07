@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(interpolate=False)
+load_dotenv(interpolate=False, override=True)
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets
+from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets, sync
 
 
 class AlCreate(BaseModel):
@@ -225,3 +225,38 @@ def configure_submit(
     finally:
         conn.close()
     return RedirectResponse("/sheets", status_code=303)
+
+
+@app.post("/api/sync")
+def api_sync(request: Request):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        return {"new_tabs": sync.check_new_tabs_all(conn, config.GOOGLE_API_KEY)}
+    finally:
+        conn.close()
+
+
+@app.get("/codes", response_class=HTMLResponse)
+def codes_page(request: Request):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        codes = aggregate.get_code_hours(conn)
+    finally:
+        conn.close()
+    return templates.TemplateResponse(request, "codes.html", {"codes": codes})
+
+
+@app.post("/codes")
+def codes_submit(request: Request, code: str = Form(...), hours: float = Form(...)):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        aggregate.set_code_hours(conn, code.strip().upper(), hours)
+    finally:
+        conn.close()
+    return RedirectResponse("/codes", status_code=303)

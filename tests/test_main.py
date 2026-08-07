@@ -187,3 +187,54 @@ def test_configure_rejects_ungenerated_date_range(tmp_path, monkeypatch):
         data={"gid": "111", "label": "Branch A", "header_row": "0"},
     )
     assert resp.status_code == 400
+
+
+def test_api_sync_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/api/sync")
+    assert resp.status_code == 401
+
+
+def test_api_sync_returns_new_tabs(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    conn.close()
+
+    monkeypatch.setattr(
+        main.sync.sheets_mod, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [{"gid": "111", "title": "August"}],
+    )
+
+    resp = client.post("/api/sync")
+    assert resp.status_code == 200
+    assert resp.json() == {"new_tabs": {"SHEET1": [{"gid": "111", "title": "August"}]}}
+
+
+def test_codes_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.get("/codes", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+
+
+def test_codes_page_lists_and_saves(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    resp = client.get("/codes")
+    assert resp.status_code == 200
+    assert "No codes configured" in resp.text
+
+    resp2 = client.post(
+        "/codes", data={"code": "sj", "hours": "12.0"}, follow_redirects=False
+    )
+    assert resp2.status_code == 303
+    assert resp2.headers["location"] == "/codes"
+
+    resp3 = client.get("/codes")
+    assert resp3.status_code == 200
+    assert "SJ" in resp3.text
+    assert "12.0" in resp3.text
