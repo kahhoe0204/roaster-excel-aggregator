@@ -75,7 +75,7 @@ def generate_report(conn, name, fetch_csv=None):
             grid = fetch(doc["spreadsheet_id"], tab["gid"])
             header = grid[doc["header_row"]] if doc["header_row"] < len(grid) else []
             name_col = next(
-                (i for i, cell in enumerate(header) if cell.strip().lower() == name_lower),
+                (i for i, cell in enumerate(header) if name_lower in cell.strip().lower()),
                 None,
             )
             if name_col is None:

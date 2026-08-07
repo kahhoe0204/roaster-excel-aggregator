@@ -9,7 +9,7 @@ function toJson(r) {
   return r.json();
 }
 
-function NameForm({ name, onSubmit }) {
+function NameForm({ name, loading, onSubmit }) {
   const [value, setValue] = React.useState(name);
   return e(
     'form',
@@ -26,7 +26,7 @@ function NameForm({ name, onSubmit }) {
       onChange: (ev) => setValue(ev.target.value),
       style: { flex: 1, marginBottom: 0 },
     }),
-    e('button', { type: 'submit', className: 'btn' }, 'View')
+    e('button', { type: 'submit', className: 'btn', disabled: loading }, loading ? 'Loading…' : 'View')
   );
 }
 
@@ -171,6 +171,7 @@ function App() {
   const [rows, setRows] = React.useState([]);
   const [unmapped, setUnmapped] = React.useState([]);
   const [alDates, setAlDates] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
 
   function load(n) {
     setName(n);
@@ -180,6 +181,7 @@ function App() {
       setAlDates([]);
       return;
     }
+    setLoading(true);
     fetch(`/api/report?name=${encodeURIComponent(n)}`)
       .then(toJson)
       .then((data) => {
@@ -187,7 +189,8 @@ function App() {
         setUnmapped(data.unmapped);
         setAlDates(data.al_dates);
       })
-      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
+      .finally(() => setLoading(false));
   }
 
   React.useEffect(() => {
@@ -197,11 +200,12 @@ function App() {
   return e(
     React.Fragment,
     null,
-    e(NameForm, { name, onSubmit: load }),
-    name && e(AlDatesPanel, { name, alDates, onChange: setAlDates }),
-    name && e(UnmappedWarning, { codes: unmapped }),
-    name && e(HoursTable, { rows }),
-    e(DownloadButton, { name: rows.length ? name : '' })
+    e(NameForm, { name, loading, onSubmit: load }),
+    loading && e('p', { className: 'ledger-empty' }, 'Fetching hours from the sheet…'),
+    !loading && name && e(AlDatesPanel, { name, alDates, onChange: setAlDates }),
+    !loading && name && e(UnmappedWarning, { codes: unmapped }),
+    !loading && name && e(HoursTable, { rows }),
+    !loading && e(DownloadButton, { name: rows.length ? name : '' })
   );
 }
 

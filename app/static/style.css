@@ -11,7 +11,9 @@
   --radius-sm: 8px;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   background: var(--paper);
@@ -21,7 +23,8 @@ body {
   padding: 2rem 1rem;
 }
 
-h1, h2 {
+h1,
+h2 {
   font-family: 'IBM Plex Mono', monospace;
   font-weight: 700;
   letter-spacing: .01em;
@@ -35,8 +38,14 @@ h1, h2 {
   background: linear-gradient(90deg, var(--ledger-line), var(--red) 60%, var(--ink));
 }
 
-.container { max-width: 56rem; margin: 0 auto; }
-.roast-rule.container { margin: 0 auto 1.5rem; }
+.container {
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.roast-rule.container {
+  margin: 0 auto 1.5rem;
+}
 
 .ledger-card {
   max-width: 24rem;
@@ -48,10 +57,18 @@ h1, h2 {
   box-shadow: 0 8px 24px rgba(43, 29, 22, .08);
 }
 
-.ledger-card form { text-align: center; }
-.ledger-card input { text-align: left; }
+.ledger-card form {
+  text-align: center;
+}
 
-input[type=text], input[type=password], input[type=date] {
+.ledger-card input {
+  text-align: left;
+}
+
+input[type=text],
+input[type=password],
+input[type=number],
+input[type=date] {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 1rem;
   padding: .6rem .75rem;
@@ -86,8 +103,20 @@ input:focus {
   text-decoration: none;
   transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .1s ease;
 }
-.btn:hover { background: var(--ledger-line); border-color: var(--ink-faint); }
-.btn:active { transform: translateY(1px); }
+
+.btn:hover {
+  background: var(--ledger-line);
+  border-color: var(--ink-faint);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: .6;
+  cursor: default;
+}
 
 .btn-primary {
   border-color: var(--red);
@@ -95,20 +124,34 @@ input:focus {
   color: var(--surface);
   box-shadow: 0 4px 12px rgba(166, 67, 43, .25);
 }
+
 .btn-primary:hover {
   background: #8f3a24;
   border-color: #8f3a24;
   box-shadow: 0 6px 16px rgba(166, 67, 43, .3);
   transform: translateY(-1px);
 }
-.btn-primary:active { transform: translateY(0); }
 
-@media (prefers-reduced-motion: reduce) {
-  .btn, input { transition: none; }
-  .btn-primary:hover { transform: none; }
+.btn-primary:active {
+  transform: translateY(0);
 }
 
-:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+
+  .btn,
+  input {
+    transition: none;
+  }
+
+  .btn-primary:hover {
+    transform: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--red);
+  outline-offset: 2px;
+}
 
 .error {
   color: var(--red);
@@ -139,8 +182,18 @@ input:focus {
   padding: 1rem 1.25rem;
   margin: 0 0 1.5rem;
 }
-.alert-info { --accent: var(--green); background: color-mix(in srgb, var(--green) 8%, var(--paper)); }
-.alert-info h2 { color: var(--green); font-size: 1rem; margin: 0 0 .75rem; }
+
+.alert-info {
+  --accent: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, var(--paper));
+}
+
+.alert-info h2 {
+  color: var(--green);
+  font-size: 1rem;
+  margin: 0 0 .75rem;
+}
+
 .alert-warning {
   --accent: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--paper));
@@ -163,10 +216,13 @@ table.ledger {
   border-collapse: collapse;
   width: 100%;
 }
-table.ledger th, table.ledger td {
+
+table.ledger th,
+table.ledger td {
   padding: .65rem .9rem;
   text-align: left;
 }
+
 table.ledger thead th {
   background: var(--ledger-line);
   font-family: 'IBM Plex Mono', monospace;
@@ -176,9 +232,20 @@ table.ledger thead th {
   color: var(--ink-faint);
   border-bottom: 1px solid var(--rule);
 }
-table.ledger tbody tr { border-bottom: 1px solid var(--rule); transition: background-color .1s ease; }
-table.ledger tbody tr:last-child { border-bottom: none; }
-table.ledger tbody tr:hover { background: color-mix(in srgb, var(--ink) 4%, var(--surface)); }
+
+table.ledger tbody tr {
+  border-bottom: 1px solid var(--rule);
+  transition: background-color .1s ease;
+}
+
+table.ledger tbody tr:last-child {
+  border-bottom: none;
+}
+
+table.ledger tbody tr:hover {
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
 table.ledger td.num {
   font-family: 'IBM Plex Mono', monospace;
   text-align: right;
@@ -186,5 +253,7 @@ table.ledger td.num {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  table.ledger tbody tr { transition: none; }
+  table.ledger tbody tr {
+    transition: none;
+  }
 }
