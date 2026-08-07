@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS code_hours (
     code TEXT PRIMARY KEY,
     hours REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS al_dates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    note TEXT,
+    UNIQUE(name, date)
+);
 """
 
 class _RemoteCursor:

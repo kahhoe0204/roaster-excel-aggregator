@@ -25,6 +25,35 @@
   </form>
 
   {% if name %}
+    <h2>Upcoming AL</h2>
+    <form method="post" action="/al">
+      <input type="hidden" name="name" value="{{ name }}">
+      <input type="date" name="date" required>
+      <input type="text" name="note" placeholder="Note (optional)">
+      <button type="submit">Add AL date</button>
+    </form>
+    {% if al_dates %}
+      <table>
+        <thead><tr><th>Date</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+          {% for al in al_dates %}
+          <tr>
+            <td>{{ al.date }}</td>
+            <td>{{ al.note }}</td>
+            <td>
+              <form method="post" action="/al/{{ al.id }}/delete">
+                <input type="hidden" name="name" value="{{ name }}">
+                <button type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No AL dates recorded for &ldquo;{{ name }}&rdquo;.</p>
+    {% endif %}
+
     {% if unmapped %}
       <p class="unmapped">Unmapped codes (no hours): {{ unmapped | join(", ") }}</p>
     {% endif %}

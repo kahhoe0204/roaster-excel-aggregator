@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import aggregate, auth, config, db, excel_export
+from . import aggregate, al, auth, config, db, excel_export
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=config.SECRET_KEY)
@@ -51,17 +51,44 @@ def logout(request: Request):
 def index(request: Request, name: str = ""):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
-    rows, unmapped = [], []
+    rows, unmapped, al_dates = [], [], []
     name = name.strip()
     if name:
         conn = db.init_db(config.DB_PATH)
         try:
             rows, unmapped = aggregate.generate_report(conn, name)
+            al_dates = al.list_al_dates(conn, name)
         finally:
             conn.close()
     return templates.TemplateResponse(
-        request, "report.html", {"name": name, "rows": rows, "unmapped": unmapped}
+        request,
+        "report.html",
+        {"name": name, "rows": rows, "unmapped": unmapped, "al_dates": al_dates},
     )
+
+
+@app.post("/al")
+def add_al(request: Request, name: str = Form(...), date: str = Form(...), note: str = Form("")):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        al.add_al_date(conn, name.strip(), date.strip(), note.strip())
+    finally:
+        conn.close()
+    return RedirectResponse(f"/?name={name.strip()}", status_code=303)
+
+
+@app.post("/al/{al_id}/delete")
+def delete_al(request: Request, al_id: int, name: str = Form(...)):
+    if not _user(request):
+        return RedirectResponse("/login", status_code=303)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        al.delete_al_date(conn, al_id)
+    finally:
+        conn.close()
+    return RedirectResponse(f"/?name={name.strip()}", status_code=303)
 
 
 @app.get("/report.xlsx")
