@@ -68,9 +68,12 @@ function UnmappedWarning({ codes }) {
 function AlDatesPanel({ name, alDates, onChange }) {
   const [date, setDate] = React.useState('');
   const [note, setNote] = React.useState('');
+  const [adding, setAdding] = React.useState(false);
+  const [removingId, setRemovingId] = React.useState(null);
 
   function add(ev) {
     ev.preventDefault();
+    setAdding(true);
     fetch('/api/al', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -82,10 +85,12 @@ function AlDatesPanel({ name, alDates, onChange }) {
         setDate('');
         setNote('');
       })
-      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
+      .finally(() => setAdding(false));
   }
 
   function remove(id) {
+    setRemovingId(id);
     fetch(`/api/al/${id}/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,7 +98,8 @@ function AlDatesPanel({ name, alDates, onChange }) {
     })
       .then(toJson)
       .then((data) => onChange(data.al_dates))
-      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); });
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
+      .finally(() => setRemovingId(null));
   }
 
   return e(
@@ -109,6 +115,7 @@ function AlDatesPanel({ name, alDates, onChange }) {
         required: true,
         'aria-label': 'AL date',
         onChange: (ev) => setDate(ev.target.value),
+        disabled: adding,
         style: { marginBottom: 0, flex: '0 0 auto' },
       }),
       e('input', {
@@ -117,9 +124,10 @@ function AlDatesPanel({ name, alDates, onChange }) {
         placeholder: 'Note (optional)',
         'aria-label': 'Note',
         onChange: (ev) => setNote(ev.target.value),
+        disabled: adding,
         style: { marginBottom: 0, flex: 1 },
       }),
-      e('button', { type: 'submit', className: 'btn' }, 'Add')
+      e('button', { type: 'submit', className: 'btn', disabled: adding }, adding ? 'Adding…' : 'Add')
     ),
     alDates.length
       ? e(
@@ -141,7 +149,11 @@ function AlDatesPanel({ name, alDates, onChange }) {
                   e(
                     'td',
                     null,
-                    e('button', { type: 'button', className: 'btn', onClick: () => remove(a.id) }, 'Remove')
+                    e(
+                      'button',
+                      { type: 'button', className: 'btn', disabled: removingId === a.id, onClick: () => remove(a.id) },
+                      removingId === a.id ? 'Removing…' : 'Remove'
+                    )
                   )
                 )
               )

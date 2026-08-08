@@ -23,7 +23,7 @@
   <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:.75rem;">
       <h2 style="margin:0;">Docs</h2>
-      <button type="button" class="btn" onclick="syncNow()">Sync now</button>
+      <button type="button" id="sync-btn" class="btn" onclick="syncNow()">Sync now</button>
     </div>
     <p id="sync-status" class="ledger-empty" style="display:none;"></p>
     {% if docs %}
@@ -35,7 +35,7 @@
             <tr>
               <td>{{ d.label }}</td>
               <td>{{ d.spreadsheet_id }}</td>
-              <td><button type="button" class="btn" onclick="deleteDoc('{{ d.spreadsheet_id }}')">Delete</button></td>
+              <td><button type="button" class="btn" onclick="deleteDoc('{{ d.spreadsheet_id }}', this)">Delete</button></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -48,7 +48,7 @@
     <h2>Add a doc</h2>
     <div style="display:flex; gap:.5rem; margin-bottom:1rem;">
       <input type="text" id="spreadsheet-id" placeholder="Spreadsheet link or ID" aria-label="Spreadsheet link or ID" style="flex:1; margin-bottom:0;">
-      <button type="button" class="btn btn-primary" onclick="loadTabs()">Load tabs</button>
+      <button type="button" id="load-tabs-btn" class="btn btn-primary" onclick="loadTabs()">Load tabs</button>
     </div>
     <div id="tabs"></div>
   </div>
@@ -59,36 +59,54 @@
       return match ? match[1] : value;
     }
 
-    async function deleteDoc(spreadsheetId) {
+    async function deleteDoc(spreadsheetId, btn) {
       if (!confirm('Delete this doc?')) return;
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
       await fetch(`/sheets/${spreadsheetId}/delete`, { method: 'POST' });
       location.reload();
     }
 
     async function syncNow() {
+      const btn = document.getElementById('sync-btn');
       const status = document.getElementById('sync-status');
+      btn.disabled = true;
       status.style.display = 'block';
       status.textContent = 'Syncing…';
-      const resp = await fetch('/api/sync', { method: 'POST' });
-      if (!resp.ok) { status.textContent = 'Sync failed.'; return; }
-      const data = await resp.json();
-      const total = Object.values(data.new_tabs).reduce((n, tabs) => n + tabs.length, 0);
-      status.textContent = total
-        ? `Found ${total} new tab(s) — reload to see them.`
-        : 'No new tabs found.';
+      try {
+        const resp = await fetch('/api/sync', { method: 'POST' });
+        if (!resp.ok) { status.textContent = 'Sync failed.'; return; }
+        const data = await resp.json();
+        const total = Object.values(data.new_tabs).reduce(
+          (n, tabs) => n + (Array.isArray(tabs) ? tabs.length : 0), 0
+        );
+        status.textContent = total
+          ? `Found ${total} new tab(s) — reload to see them.`
+          : 'No new tabs found.';
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     async function loadTabs() {
       const spreadsheetId = extractSpreadsheetId(document.getElementById('spreadsheet-id').value.trim());
       if (!spreadsheetId) return;
-      const resp = await fetch('/api/sheets/tabs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spreadsheet_id: spreadsheetId }),
-      });
-      if (!resp.ok) { alert('Could not load tabs — check the spreadsheet ID.'); return; }
-      const data = await resp.json();
+      const btn = document.getElementById('load-tabs-btn');
       const container = document.getElementById('tabs');
+      btn.disabled = true;
+      container.innerHTML = '<p class="ledger-empty">Loading tabs…</p>';
+      let resp;
+      try {
+        resp = await fetch('/api/sheets/tabs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ spreadsheet_id: spreadsheetId }),
+        });
+      } finally {
+        btn.disabled = false;
+      }
+      if (!resp.ok) { container.innerHTML = ''; alert('Could not load tabs — check the spreadsheet ID.'); return; }
+      const data = await resp.json();
       container.innerHTML = '';
       data.tabs.forEach((tab) => {
         const a = document.createElement('a');
