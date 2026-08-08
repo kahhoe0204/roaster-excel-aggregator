@@ -1,3 +1,5 @@
+import requests
+
 from app import sync, mapping as mapping_mod, db as db_mod
 
 
@@ -33,3 +35,19 @@ def test_check_new_tabs_all_covers_every_doc(tmp_path):
         "SHEET1": [{"gid": "1", "title": "August"}],
         "SHEET2": [{"gid": "1", "title": "August"}],
     }
+
+
+def test_check_new_tabs_all_skips_doc_that_errors(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 31)
+
+    def fake_list_tabs(spreadsheet_id, api_key):
+        if spreadsheet_id == "SHEET1":
+            raise requests.exceptions.HTTPError("404 Client Error: Not Found")
+        return [{"gid": "1", "title": "August"}]
+
+    result = sync.check_new_tabs_all(conn, "fake-key", list_tabs=fake_list_tabs)
+
+    assert result["SHEET1"] == {"error": "404 Client Error: Not Found"}
+    assert result["SHEET2"] == [{"gid": "1", "title": "August"}]

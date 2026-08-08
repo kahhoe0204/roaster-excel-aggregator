@@ -1,3 +1,5 @@
+import requests
+
 from . import mapping as mapping_mod
 from . import sheets as sheets_mod
 
@@ -13,7 +15,10 @@ def check_new_tabs(conn, doc, api_key, list_tabs=None):
 
 
 def check_new_tabs_all(conn, api_key, list_tabs=None):
-    return {
-        doc["spreadsheet_id"]: check_new_tabs(conn, doc, api_key, list_tabs=list_tabs)
-        for doc in mapping_mod.list_docs(conn)
-    }
+    result = {}
+    for doc in mapping_mod.list_docs(conn):
+        try:
+            result[doc["spreadsheet_id"]] = check_new_tabs(conn, doc, api_key, list_tabs=list_tabs)
+        except requests.exceptions.HTTPError as e:
+            result[doc["spreadsheet_id"]] = {"error": str(e)}
+    return result
