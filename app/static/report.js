@@ -67,6 +67,18 @@ function HoursTable({ rows, name }) {
     }).catch((err) => console.error(err));
   }
 
+  function saveOperationPeriod(r, value) {
+    fetch('/api/operation-period', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spreadsheet_id: r.spreadsheet_id,
+        branch_code: r.branch_code,
+        operation_hours: value,
+      }),
+    }).catch((err) => console.error(err));
+  }
+
   function renderGroup(group) {
     return e(
       'div',
@@ -98,7 +110,22 @@ function HoursTable({ rows, name }) {
                 e('td', null, r.day),
                 e('td', { className: 'num' }, r.hours.toFixed(2)),
                 e('td', null, r.source),
-                e('td', null, r.operation_hours || ''),
+                e(
+                  'td',
+                  null,
+                  e('input', {
+                    type: 'text',
+                    defaultValue: r.operation_hours || '',
+                    placeholder: 'e.g. 10:00 AM - 10:00 PM',
+                    'aria-label': `Operation period for ${r.source}`,
+                    onBlur: (ev) => {
+                      const value = ev.target.value.trim();
+                      if (value === (r.operation_hours || '')) return;
+                      saveOperationPeriod(r, value);
+                    },
+                    style: { width: '100%', marginBottom: 0 },
+                  })
+                ),
                 e(
                   'td',
                   null,
@@ -107,7 +134,11 @@ function HoursTable({ rows, name }) {
                     defaultValue: r.remark || '',
                     placeholder: 'e.g. bank in',
                     'aria-label': `Remark for ${r.date}`,
-                    onBlur: (ev) => saveRemark(r.date, ev.target.value.trim()),
+                    onBlur: (ev) => {
+                      const value = ev.target.value.trim();
+                      if (value === (r.remark || '')) return;
+                      saveRemark(r.date, value);
+                    },
                     style: { width: '100%', marginBottom: 0 },
                   })
                 )

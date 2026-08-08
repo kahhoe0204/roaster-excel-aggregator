@@ -173,7 +173,8 @@ def generate_report(conn, name, fetch_csv=None):
                 # floating slot next to it records which branch she actually
                 # covered that day — that code wins over the doc's own label.
                 branch = placeholder_text or doc["label"]
-                operation_hours = branch_hours.get(placeholder_text.upper()) if placeholder_text else None
+                branch_code = placeholder_text.upper() if placeholder_text else None
+                operation_hours = branch_hours.get(branch_code) if branch_code else None
                 rows.append({
                     "name": name,
                     "date": date_cell.strip(),
@@ -181,6 +182,8 @@ def generate_report(conn, name, fetch_csv=None):
                     "hours": hours,
                     "source": f"{branch} / {tab['title']}",
                     "operation_hours": operation_hours or doc["operation_hours"],
+                    "spreadsheet_id": doc["spreadsheet_id"],
+                    "branch_code": branch_code,
                 })
     rows.sort(key=lambda r: _date_sort_key(r["date"]))
     unmapped_list = sorted(

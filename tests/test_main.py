@@ -140,7 +140,7 @@ def test_api_set_remark_merges_into_report(tmp_path, monkeypatch):
     resp2 = client.get("/api/report", params={"name": "Alice"})
     assert resp2.json()["rows"] == [
         {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / August",
-         "operation_hours": None, "remark": "bank in"},
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": None, "remark": "bank in"},
     ]
 
 
@@ -150,6 +150,65 @@ def test_api_set_remark_missing_date_400s(tmp_path, monkeypatch):
 
     resp = client.post("/api/remarks", json={"name": "Alice", "date": "", "note": "x"})
     assert resp.status_code == 400
+
+
+def test_api_set_operation_period_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post(
+        "/api/operation-period",
+        json={"spreadsheet_id": "SHEET1", "branch_code": None, "operation_hours": "8:00 AM - 8:00 PM"},
+    )
+    assert resp.status_code == 401
+
+
+def test_api_set_operation_period_without_branch_code_sets_doc_default(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    conn.close()
+
+    resp = client.post(
+        "/api/operation-period",
+        json={"spreadsheet_id": "SHEET1", "operation_hours": "9:00 AM - 9:00 PM"},
+    )
+    assert resp.status_code == 200
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.mapping.get_doc(conn, "SHEET1")["operation_hours"] == "9:00 AM - 9:00 PM"
+    conn.close()
+
+
+def test_api_set_operation_period_with_branch_code_sets_branch_period(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    conn.close()
+
+    resp = client.post(
+        "/api/operation-period",
+        json={"spreadsheet_id": "SHEET1", "branch_code": "p14", "operation_hours": "8:00 AM - 8:00 PM"},
+    )
+    assert resp.status_code == 200
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.aggregate.get_branch_operation_hours(conn, doc_id) == {"P14": "8:00 AM - 8:00 PM"}
+    assert main.mapping.get_doc(conn, "SHEET1")["operation_hours"] is None  # doc default untouched
+    conn.close()
+
+
+def test_api_set_operation_period_unknown_spreadsheet_id_404s(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    resp = client.post(
+        "/api/operation-period",
+        json={"spreadsheet_id": "NOPE", "operation_hours": "8:00 AM - 8:00 PM"},
+    )
+    assert resp.status_code == 404
 
 
 def test_sheets_requires_login(tmp_path, monkeypatch):

@@ -28,6 +28,12 @@ class RemarkCreate(BaseModel):
     note: str = ""
 
 
+class OperationPeriodUpdate(BaseModel):
+    spreadsheet_id: str
+    branch_code: str | None = None
+    operation_hours: str
+
+
 class AlAction(BaseModel):
     name: str
 
@@ -165,6 +171,25 @@ def api_set_remark(request: Request, payload: RemarkCreate):
     conn = db.init_db(config.DB_PATH)
     try:
         remarks.set_remark(conn, name, date, payload.note.strip())
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
+@app.post("/api/operation-period")
+def api_set_operation_period(request: Request, payload: OperationPeriodUpdate):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    period = payload.operation_hours.strip()
+    conn = db.init_db(config.DB_PATH)
+    try:
+        doc = mapping.get_doc(conn, payload.spreadsheet_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Unknown spreadsheet_id")
+        if payload.branch_code:
+            aggregate.set_branch_operation_hours(conn, doc["id"], payload.branch_code.strip().upper(), period)
+        else:
+            mapping.set_operation_hours(conn, payload.spreadsheet_id, period)
     finally:
         conn.close()
     return {"ok": True}

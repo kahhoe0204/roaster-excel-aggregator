@@ -123,7 +123,8 @@ def test_generate_report_matches_name_across_docs(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "day": "Friday", "hours": 9.5, "source": "Branch A / August", "operation_hours": None},
+        {"name": "Alice", "date": "1-Aug", "day": "Friday", "hours": 9.5, "source": "Branch A / August",
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": None},
     ]
     assert unmapped == []
 
@@ -226,8 +227,10 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August", "operation_hours": None},
-        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "Branch A / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August",
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": "P14"},
+        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "Branch A / August",
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": None},
     ]
     assert unmapped == []
 
@@ -253,8 +256,10 @@ def test_generate_report_uses_branch_specific_operation_hours(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August", "operation_hours": "8:00 AM - 8:00 PM"},
-        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "SJ / August", "operation_hours": "9:00 AM - 9:00 PM"},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August",
+         "operation_hours": "8:00 AM - 8:00 PM", "spreadsheet_id": "SHEET1", "branch_code": "P14"},
+        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "SJ / August",
+         "operation_hours": "9:00 AM - 9:00 PM", "spreadsheet_id": "SHEET1", "branch_code": "SJ"},
     ]
 
 
@@ -272,7 +277,8 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "SJ / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "SJ / August",
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": "SJ"},
     ]
     assert unmapped == []
 
@@ -288,7 +294,8 @@ def test_generate_report_carries_doc_operation_hours(tmp_path):
     )
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / August",
+         "operation_hours": "10:00 AM - 10:00 PM", "spreadsheet_id": "SHEET1", "branch_code": None},
     ]
 
 
@@ -328,6 +335,7 @@ def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / Live", "operation_hours": None},
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / Live",
+         "operation_hours": None, "spreadsheet_id": "SHEET1", "branch_code": None},
     ]
     assert unmapped == []
