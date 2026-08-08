@@ -438,6 +438,25 @@ def test_sheets_page_lists_pending_tabs_needing_configuration(tmp_path, monkeypa
     assert "AUG 26 PH" in resp.text
 
 
+def test_sheets_page_shows_latest_synced_tab_without_calling_the_api(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A", tab_pattern="{month} {shortyear} PH")
+    main.mapping.mark_tab_known(conn, doc_id, "111", "JUL 26 PH")
+    main.mapping.mark_tab_known(conn, doc_id, "222", "AUG 26 PH")
+    conn.close()
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("must not call the Sheets API just to render /sheets")
+    monkeypatch.setattr(main.sheets, "list_tabs", _boom)
+
+    resp = client.get("/sheets")
+    assert resp.status_code == 200
+    assert "AUG 26 PH" in resp.text
+
+
 def test_configure_submit_sets_header_row_independently_per_tab(tmp_path, monkeypatch):
     # Regression: header_row/date range used to be shared by the whole doc,
     # which broke when a later month's tab has a different row offset than

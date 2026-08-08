@@ -31,6 +31,24 @@ def matches(template, title):
     return bool(compile_pattern(template).match(title.strip()))
 
 
+def latest_tab(template, tabs):
+    """Return the tab dict (must have a "title") that parses to the latest
+    month/year among those matching `template`, or None if none match —
+    used to show which already-synced tab is newest without calling the
+    Sheets API again."""
+    if not template:
+        return None
+    regex = compile_pattern(template)
+    ranked = []
+    for tab in tabs:
+        m = regex.match(tab["title"].strip())
+        if m:
+            ranked.append((_sort_key(m), tab))
+    if not ranked:
+        return None
+    return max(ranked, key=lambda pair: pair[0])[1]
+
+
 _MONTH_TOKEN_RE = re.compile(r"(?i)\b(" + "|".join(_MONTH_ABBR) + r")\b")
 _YEAR_TOKEN_RE = re.compile(r"\b\d{2}\b")
 

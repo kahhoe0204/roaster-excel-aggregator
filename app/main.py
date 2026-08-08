@@ -223,6 +223,9 @@ def sheets_page(request: Request):
     conn = db.init_db(config.DB_PATH)
     try:
         docs = mapping.list_docs(conn)
+        for doc in docs:
+            latest = tab_pattern.latest_tab(doc["tab_pattern"], mapping.all_known_tabs(conn, doc["id"]))
+            doc["latest_tab"] = latest["title"] if latest else None
         pending = mapping.pending_tabs(conn)
     finally:
         conn.close()

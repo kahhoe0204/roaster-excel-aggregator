@@ -39,3 +39,21 @@ def test_tab_month_finds_the_embedded_month():
 
 def test_tab_month_none_without_a_recognizable_month():
     assert tab_pattern.tab_month("STATE PH") is None
+
+
+def test_latest_tab_by_parsed_month_year():
+    tabs = [
+        {"gid": "1", "title": "JUL 25 PH"},
+        {"gid": "2", "title": "AUG 26 PH"},
+        {"gid": "3", "title": "AUG 26 OTHER"},  # doesn't match, excluded
+        {"gid": "4", "title": "JAN 26 PH"},
+    ]
+    latest = tab_pattern.latest_tab("{month} {shortyear} PH", tabs)
+    assert latest == {"gid": "2", "title": "AUG 26 PH"}
+
+
+def test_latest_tab_returns_none_when_no_match_or_no_pattern():
+    tabs = [{"gid": "1", "title": "Instructions"}]
+    assert tab_pattern.latest_tab("{month} {shortyear} PH", tabs) is None
+    assert tab_pattern.latest_tab(None, tabs) is None
+    assert tab_pattern.latest_tab("", tabs) is None

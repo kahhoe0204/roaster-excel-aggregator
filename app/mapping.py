@@ -148,6 +148,15 @@ def default_header_row(conn, doc_id):
     return row["header_row"] if row else None
 
 
+def all_known_tabs(conn, doc_id):
+    """Every tab sync has ever recorded for this doc, configured or
+    pending — gid+title only, for picking the latest synced tab."""
+    rows = conn.execute(
+        "SELECT gid, title FROM known_tabs WHERE doc_id = ?", (doc_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def pending_tabs(conn):
     """Tabs that sync has discovered but no one has confirmed a header row
     for yet, across all docs — the "needs configuring" queue."""

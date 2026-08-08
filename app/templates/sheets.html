@@ -29,12 +29,13 @@
     {% if docs %}
       <div class="table-wrap">
         <table class="ledger">
-          <thead><tr><th>Label</th><th>Spreadsheet ID</th><th>Operation Period</th><th></th></tr></thead>
+          <thead><tr><th>Label</th><th>Spreadsheet ID</th><th>Latest Synced Tab</th><th>Operation Period</th><th></th></tr></thead>
           <tbody>
             {% for d in docs %}
             <tr>
               <td>{{ d.label }}</td>
               <td>{{ d.spreadsheet_id }}</td>
+              <td>{{ d.latest_tab or "—" }}</td>
               <td>
                 <form method="post" action="/sheets/{{ d.spreadsheet_id }}/operation-hours" style="display:flex; gap:.5rem;">
                   <input type="text" name="hours" value="{{ d.operation_hours if d.operation_hours is not none else '' }}" placeholder="e.g. 10:00 AM - 10:00 PM" style="margin-bottom:0; width:12rem;">

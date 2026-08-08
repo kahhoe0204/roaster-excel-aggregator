@@ -166,6 +166,17 @@ def test_default_header_row_none_when_doc_has_no_configured_tabs(tmp_path):
     assert mapping.default_header_row(conn, doc_id) is None
 
 
+def test_all_known_tabs_includes_pending_and_configured(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
+    mapping.mark_tab_known(conn, doc_id, "111", "JUL 26 PH")
+    mapping.mark_tab_known(conn, doc_id, "222", "AUG 26 PH")
+    mapping.configure_tab(conn, doc_id, "111", header_row=0, date_col=0, row_start=1, row_end=31)
+
+    tabs = {t["gid"]: t["title"] for t in mapping.all_known_tabs(conn, doc_id)}
+    assert tabs == {"111": "JUL 26 PH", "222": "AUG 26 PH"}
+
+
 def test_pending_tabs_lists_unconfigured_tabs_across_docs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_a = mapping.save_mapping(conn, "SHEET1", "Branch A")
