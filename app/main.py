@@ -215,15 +215,18 @@ def configure_form(request: Request, spreadsheet_id: str, gid: str, tab_pattern:
     conn = db.init_db(config.DB_PATH)
     try:
         doc = mapping.get_doc(conn, spreadsheet_id)
+        default_header_row = mapping.default_header_row(conn, doc["id"]) if doc else None
     finally:
         conn.close()
+    previews = [", ".join(cell.strip() for cell in row if cell.strip()) for row in grid[:15]]
     return templates.TemplateResponse(
         request,
         "configure.html",
         {
             "spreadsheet_id": spreadsheet_id,
             "gid": gid,
-            "grid": grid[:15],
+            "previews": previews,
+            "default_header_row": default_header_row,
             "error": None,
             "tab_pattern": tab_pattern or (doc["tab_pattern"] if doc else "") or "",
             "label": doc["label"] if doc else "",
@@ -245,13 +248,15 @@ def configure_submit(
     grid = csv_fetch.fetch_csv(spreadsheet_id, gid)
     detected = mapping.detect_date_range(grid, header_row)
     if detected is None:
+        previews = [", ".join(cell.strip() for cell in row if cell.strip()) for row in grid[:15]]
         return templates.TemplateResponse(
             request,
             "configure.html",
             {
                 "spreadsheet_id": spreadsheet_id,
                 "gid": gid,
-                "grid": grid[:15],
+                "previews": previews,
+                "default_header_row": header_row,
                 "error": "Could not auto-detect a date column from that row.",
                 "tab_pattern": tab_pattern,
                 "label": label,

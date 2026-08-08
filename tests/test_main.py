@@ -280,6 +280,26 @@ def test_configure_form_carries_tab_pattern_into_hidden_field(tmp_path, monkeypa
     assert 'value="{month} {shortyear} PH"' in resp.text
 
 
+def test_configure_form_defaults_header_row_from_sibling_tab(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    main.mapping.mark_tab_known(conn, doc_id, "111", "JUL 26 PH")
+    main.mapping.configure_tab(conn, doc_id, "111", header_row=8, date_col=1, row_start=9, row_end=40)
+    main.mapping.mark_tab_known(conn, doc_id, "222", "AUG 26 PH")  # pending
+    conn.close()
+
+    aug_grid = [["r0"], ["r1"], ["r2"], ["r3"], ["r4"], ["r5"], ["r6"], ["r7"], ["JACKY", "TAN MIN"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: aug_grid)
+
+    resp = client.get("/sheets/SHEET1/configure", params={"gid": "222"})
+    assert resp.status_code == 200
+    assert 'id="header_row" value="8"' in resp.text
+    assert "JACKY, TAN MIN" in resp.text
+
+
 def test_configure_submit_persists_tab_pattern(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})

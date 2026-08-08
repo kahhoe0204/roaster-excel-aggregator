@@ -138,6 +138,16 @@ def known_tabs(conn, doc_id):
     return [dict(r) for r in rows]
 
 
+def default_header_row(conn, doc_id):
+    """Best guess for a new tab's header row: whatever an already-configured
+    tab of this doc used, since most months share the same layout."""
+    row = conn.execute(
+        "SELECT header_row FROM known_tabs WHERE doc_id = ? AND header_row IS NOT NULL LIMIT 1",
+        (doc_id,),
+    ).fetchone()
+    return row["header_row"] if row else None
+
+
 def pending_tabs(conn):
     """Tabs that sync has discovered but no one has confirmed a header row
     for yet, across all docs — the "needs configuring" queue."""

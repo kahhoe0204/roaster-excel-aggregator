@@ -18,12 +18,22 @@
 
   <div class="container">
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
-    <p>Click the row that holds staff names.</p>
+
+    {% if default_header_row is not none %}
+      <p class="alert alert-info" id="header-row-callout">
+        Header row (row {{ default_header_row }}): <strong>{{ previews[default_header_row] }}</strong><br>
+        Staff names look right? Just save below — or pick a different row if not.
+      </p>
+    {% else %}
+      <p>Click the row that holds staff names.</p>
+    {% endif %}
+
     <div class="table-wrap">
       <table class="ledger" id="grid">
-        {% for row in grid %}
+        {% for preview in previews %}
         <tr onclick="selectRow({{ loop.index0 }})">
-          {% for cell in row %}<td>{{ cell }}</td>{% endfor %}
+          <td class="num">{{ loop.index0 }}</td>
+          <td>{{ preview }}</td>
         </tr>
         {% endfor %}
       </table>
@@ -32,7 +42,7 @@
     <form method="post" action="/sheets/{{ spreadsheet_id }}/configure">
       <input type="hidden" name="gid" value="{{ gid }}">
       <input type="hidden" name="tab_pattern" value="{{ tab_pattern }}">
-      <input type="hidden" name="header_row" id="header_row" value="0">
+      <input type="hidden" name="header_row" id="header_row" value="{{ default_header_row if default_header_row is not none else 0 }}">
       <input type="text" name="label" value="{{ label }}" placeholder="Doc label" aria-label="Doc label" required>
       <button type="submit" class="btn btn-primary">Save mapping</button>
     </form>
@@ -44,6 +54,9 @@
       document.querySelectorAll('#grid tr').forEach((r) => { r.style.background = ''; });
       document.querySelectorAll('#grid tr')[i].style.background = 'var(--ledger-line)';
     }
+    {% if default_header_row is not none %}
+      selectRow({{ default_header_row }});
+    {% endif %}
   </script>
 </body>
 </html>

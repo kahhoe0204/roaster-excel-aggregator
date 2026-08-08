@@ -148,6 +148,24 @@ def test_known_tabs_excludes_unconfigured_pending_tabs(tmp_path):
     assert tabs == {"111": "August"}  # "222" still pending, not returned
 
 
+def test_default_header_row_uses_a_sibling_configured_tab(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
+    mapping.mark_tab_known(conn, doc_id, "111", "July")
+    mapping.mark_tab_known(conn, doc_id, "222", "August")
+    mapping.configure_tab(conn, doc_id, "111", header_row=8, date_col=1, row_start=9, row_end=40)
+
+    assert mapping.default_header_row(conn, doc_id) == 8
+
+
+def test_default_header_row_none_when_doc_has_no_configured_tabs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
+    mapping.mark_tab_known(conn, doc_id, "111", "July")
+
+    assert mapping.default_header_row(conn, doc_id) is None
+
+
 def test_pending_tabs_lists_unconfigured_tabs_across_docs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_a = mapping.save_mapping(conn, "SHEET1", "Branch A")
