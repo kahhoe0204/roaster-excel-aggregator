@@ -76,7 +76,7 @@ def test_generate_report_matches_name_across_docs(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August"},
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": None},
     ]
     assert unmapped == []
 
@@ -125,8 +125,8 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August"},
-        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August"},
+        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August", "operation_hours": None},
     ]
     assert unmapped == []
 
@@ -146,9 +146,25 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "SJ / August"},
+        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "SJ / August", "operation_hours": None},
     ]
     assert unmapped == []
+
+
+def test_generate_report_carries_doc_operation_hours(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    mapping_mod.set_operation_hours(conn, "SHEET1", 12.0)
+
+    grid = [["", "Alice"], ["1-Aug", "9.5"]]
+    rows, _ = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+
+    assert rows == [
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": 12.0},
+    ]
 
 
 def test_generate_report_sorts_rows_by_date_ascending(tmp_path):
@@ -187,6 +203,6 @@ def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / Live"},
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / Live", "operation_hours": None},
     ]
     assert unmapped == []

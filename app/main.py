@@ -172,6 +172,18 @@ def sheets_page(request: Request):
     return templates.TemplateResponse(request, "sheets.html", {"docs": docs})
 
 
+@app.post("/sheets/{spreadsheet_id}/operation-hours")
+def set_operation_hours(request: Request, spreadsheet_id: str, hours: float = Form(...)):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        mapping.set_operation_hours(conn, spreadsheet_id, hours)
+    finally:
+        conn.close()
+    return RedirectResponse("/sheets", status_code=303)
+
+
 @app.post("/sheets/{spreadsheet_id}/delete")
 def delete_doc(request: Request, spreadsheet_id: str):
     if not _user(request):

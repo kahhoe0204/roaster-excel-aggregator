@@ -61,6 +61,16 @@ def test_delete_doc_missing_spreadsheet_id_is_noop(tmp_path):
     mapping.delete_doc(conn, "NOPE")  # should not raise
 
 
+def test_set_operation_hours(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    assert mapping.get_doc(conn, "SHEET1")["operation_hours"] is None
+
+    mapping.set_operation_hours(conn, "SHEET1", 12.0)
+
+    assert mapping.get_doc(conn, "SHEET1")["operation_hours"] == 12.0
+
+
 def test_mark_and_list_known_tabs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)

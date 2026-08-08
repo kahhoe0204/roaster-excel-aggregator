@@ -164,6 +164,31 @@ def test_delete_doc_removes_it_from_list(tmp_path, monkeypatch):
     assert "SHEET1" not in resp2.text
 
 
+def test_set_operation_hours_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/sheets/SHEET1/operation-hours", data={"hours": "12"})
+    assert resp.status_code == 401
+
+
+def test_set_operation_hours_saves_and_redirects(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    conn.close()
+
+    resp = client.post(
+        "/sheets/SHEET1/operation-hours", data={"hours": "12"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/sheets"
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.mapping.get_doc(conn, "SHEET1")["operation_hours"] == 12.0
+    conn.close()
+
+
 def test_configure_saves_mapping_and_lists_doc(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})

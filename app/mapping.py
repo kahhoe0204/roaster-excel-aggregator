@@ -56,6 +56,14 @@ def get_doc(conn, spreadsheet_id):
     return dict(row) if row else None
 
 
+def set_operation_hours(conn, spreadsheet_id, hours):
+    conn.execute(
+        "UPDATE docs SET operation_hours = ? WHERE spreadsheet_id = ?",
+        (hours, spreadsheet_id),
+    )
+    conn.commit()
+
+
 def delete_doc(conn, spreadsheet_id):
     doc = get_doc(conn, spreadsheet_id)
     if doc is None:

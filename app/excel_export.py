@@ -37,14 +37,14 @@ def rows_to_xlsx(rows):
         ws = sheets.get(month)
         if ws is None:
             ws = wb.create_sheet(title=month)
-            ws.append(["Name", "Date", "Time", "Source"])
+            ws.append(["Name", "Date", "Time", "Source", "Operation Hours"])
             sheets[month] = ws
-        ws.append([row["name"], row["date"], row["hours"], row["source"]])
+        ws.append([row["name"], row["date"], row["hours"], row["source"], row.get("operation_hours")])
         for cell in ws[ws.max_row]:
             cell.fill = fill_for(_branch(row["source"]))
 
     if not sheets:
-        wb.create_sheet(title="Report").append(["Name", "Date", "Time", "Source"])
+        wb.create_sheet(title="Report").append(["Name", "Date", "Time", "Source", "Operation Hours"])
 
     buf = BytesIO()
     wb.save(buf)

@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS docs (
     header_row INTEGER NOT NULL,
     date_col INTEGER NOT NULL,
     date_row_start INTEGER NOT NULL,
-    date_row_end INTEGER NOT NULL
+    date_row_end INTEGER NOT NULL,
+    operation_hours REAL
 );
 
 CREATE TABLE IF NOT EXISTS known_tabs (
@@ -93,4 +94,9 @@ def init_db(db_path):
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
     conn.commit()
+    try:
+        conn.execute("ALTER TABLE docs ADD COLUMN operation_hours REAL")
+        conn.commit()
+    except Exception:
+        pass  # column already exists on every init_db call after the first
     return conn

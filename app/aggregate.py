@@ -135,6 +135,7 @@ def generate_report(conn, name, fetch_csv=None):
                     "date": date_cell.strip(),
                     "hours": hours,
                     "source": f"{branch} / {tab['title']}",
+                    "operation_hours": doc["operation_hours"],
                 })
     rows.sort(key=lambda r: _date_sort_key(r["date"]))
     return rows, sorted(unmapped)
