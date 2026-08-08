@@ -105,6 +105,52 @@ def test_generate_report_skips_docs_without_matching_name(tmp_path):
     assert unmapped == []
 
 
+def test_generate_report_uses_floating_column_code_as_source(tmp_path):
+    # Regression: a relief pharmacist's own column holds her hours (a bare
+    # number), but which branch she actually covered that day is recorded
+    # as a code in the "[Pharmacist Name]" floating slot next to it — that
+    # code should win over this doc's own branch label.
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 3)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+
+    grid = [
+        ["", "MEGAN", "TAN MIN (PRP)", "[Pharmacist Name]"],
+        ["1-Aug", "", "12", "P14"],
+        ["2-Aug", "", "", ""],
+        ["3-Aug", "", "12", ""],
+    ]
+    rows, unmapped = aggregate.generate_report(
+        conn, "Tan Min", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+
+    assert rows == [
+        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August"},
+        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August"},
+    ]
+    assert unmapped == []
+
+
+def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    aggregate.set_code_hours(conn, "SJ", 12.0)
+
+    grid = [
+        ["", "TAN MIN (PRP)", "[Pharmacist Name]"],
+        ["1-Aug", "", "SJ"],
+    ]
+    rows, unmapped = aggregate.generate_report(
+        conn, "Tan Min", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+
+    assert rows == [
+        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "SJ / August"},
+    ]
+    assert unmapped == []
+
+
 def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     # Regression: a deleted/renamed tab's gid causes Google to 400 on export;
     # that tab should be skipped, not crash the whole report.

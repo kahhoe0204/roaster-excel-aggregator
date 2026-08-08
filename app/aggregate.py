@@ -10,6 +10,10 @@ _CODE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 # Leave shortforms — not hours worked, not an unmapped code either.
 _IGNORED_CODES = {"AL", "RL", "MC", "PH", "LEAVE"}
 
+# A bracket-only header ("[Pharmacist Name]", "[]", "[any]") is a floating
+# covering slot for whoever's own column is blank that day, not a named column.
+_PLACEHOLDER_HEADER_RE = re.compile(r"^\[.*\]$")
+
 
 def resolve_cell(cell, code_hours):
     """Resolve a cell value to hours or an unmapped code.
@@ -90,21 +94,36 @@ def generate_report(conn, name, fetch_csv=None):
             )
             if name_col is None:
                 continue
+            placeholder_col = name_col + 1
+            has_placeholder = (
+                placeholder_col < len(header)
+                and _PLACEHOLDER_HEADER_RE.match(header[placeholder_col].strip())
+            )
             for r in range(doc["date_row_start"], doc["date_row_end"] + 1):
                 if r >= len(grid):
                     break
                 row = grid[r]
                 date_cell = row[doc["date_col"]] if doc["date_col"] < len(row) else ""
                 value_cell = row[name_col] if name_col < len(row) else ""
+                placeholder_text = ""
+                if has_placeholder:
+                    placeholder_cell = row[placeholder_col] if placeholder_col < len(row) else ""
+                    placeholder_text = placeholder_cell.strip()
                 hours, unmapped_code = resolve_cell(value_cell, code_hours)
+                if hours is None and unmapped_code is None and placeholder_text:
+                    hours, unmapped_code = resolve_cell(placeholder_cell, code_hours)
                 if unmapped_code:
                     unmapped.add(unmapped_code)
                 if hours is None:
                     continue
+                # A relief pharmacist's own column stays hers, but the
+                # floating slot next to it records which branch she actually
+                # covered that day — that code wins over the doc's own label.
+                branch = placeholder_text or doc["label"]
                 rows.append({
                     "name": name,
                     "date": date_cell.strip(),
                     "hours": hours,
-                    "source": f"{doc['label']} / {tab['title']}",
+                    "source": f"{branch} / {tab['title']}",
                 })
     return rows, sorted(unmapped)
