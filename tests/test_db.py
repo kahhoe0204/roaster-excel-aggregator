@@ -57,6 +57,32 @@ def test_init_db_migration_is_idempotent(tmp_path):
     conn = db.init_db(db_path)  # second call should not error or duplicate
     assert conn.execute("SELECT * FROM code_hours").fetchall() == []
 
+def test_init_db_migrates_code_hours_to_allow_null(tmp_path):
+    # Regression: hours used to be NOT NULL; a code can now be marked
+    # "ignored" by storing NULL instead of a number.
+    db_path = str(tmp_path / "old.db")
+    raw = sqlite3.connect(db_path)
+    raw.execute("""CREATE TABLE docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spreadsheet_id TEXT UNIQUE NOT NULL,
+        label TEXT NOT NULL
+    )""")
+    raw.execute("INSERT INTO docs (spreadsheet_id, label) VALUES ('SHEET1', 'Branch A')")
+    raw.execute(
+        "CREATE TABLE code_hours (doc_id INTEGER NOT NULL REFERENCES docs(id), "
+        "code TEXT NOT NULL, hours REAL NOT NULL, PRIMARY KEY (doc_id, code))"
+    )
+    raw.execute("INSERT INTO code_hours (doc_id, code, hours) VALUES (1, 'F', 12.0)")
+    raw.commit()
+    raw.close()
+
+    conn = db.init_db(db_path)
+    conn.execute("INSERT INTO code_hours (doc_id, code, hours) VALUES (1, 'KDM', NULL)")
+    conn.commit()
+
+    rows = {r["code"]: r["hours"] for r in conn.execute("SELECT code, hours FROM code_hours").fetchall()}
+    assert rows == {"F": 12.0, "KDM": None}
+
 def test_init_db_migrates_doc_date_config_to_known_tabs(tmp_path):
     # Regression: header_row/date_col used to live on docs and apply to
     # every tab; now they're per-tab since months can shift row offsets.

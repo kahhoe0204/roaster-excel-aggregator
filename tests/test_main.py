@@ -452,6 +452,29 @@ def test_codes_page_lists_and_saves(tmp_path, monkeypatch):
     assert "12.0" in resp3.text
 
 
+def test_codes_submit_sets_operation_period_without_touching_hours(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    main.aggregate.set_code_hours(conn, doc_id, "P14", 12.0)
+    conn.close()
+
+    client.post(
+        "/codes",
+        data={"spreadsheet_id": "SHEET1", "code": "p14", "operation_hours": "8:00 AM - 8:00 PM"},
+    )
+
+    resp = client.get("/codes")
+    assert "8:00 AM - 8:00 PM" in resp.text
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.aggregate.get_code_hours(conn, doc_id) == {"P14": 12.0}  # untouched
+    assert main.aggregate.get_branch_operation_hours(conn, doc_id) == {"P14": "8:00 AM - 8:00 PM"}
+    conn.close()
+
+
 def test_api_set_code_hours_requires_login(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.post("/api/codes", json={"spreadsheet_id": "SHEET1", "code": "f", "hours": 9.0})
@@ -472,6 +495,22 @@ def test_api_set_code_hours_saves(tmp_path, monkeypatch):
 
     conn = main.db.init_db(config.DB_PATH)
     assert main.aggregate.get_code_hours(conn, doc_id) == {"F": 9.0}
+    conn.close()
+
+
+def test_api_set_code_hours_null_marks_it_ignored(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    conn.close()
+
+    resp = client.post("/api/codes", json={"spreadsheet_id": "SHEET1", "code": "kdm", "hours": None})
+    assert resp.status_code == 200
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.aggregate.get_code_hours(conn, doc_id) == {"KDM": None}
     conn.close()
 
 

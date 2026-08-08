@@ -29,10 +29,14 @@
       {% if entry.codes %}
         <div class="table-wrap">
           <table class="ledger">
-            <thead><tr><th>Code</th><th>Hours</th></tr></thead>
+            <thead><tr><th>Code</th><th>Hours</th><th>Operation Period</th></tr></thead>
             <tbody>
-              {% for code, hours in entry.codes.items() %}
-              <tr><td>{{ code }}</td><td class="num">{{ hours }}</td></tr>
+              {% for code, info in entry.codes.items() %}
+              <tr>
+                <td>{{ code }}</td>
+                <td class="num">{{ info.hours if info.hours is not none else "ignored" }}</td>
+                <td>{{ info.operation_hours or "" }}</td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
@@ -44,7 +48,8 @@
       <form method="post" action="/codes" style="display:flex; gap:.5rem; margin-bottom:1.5rem;">
         <input type="hidden" name="spreadsheet_id" value="{{ entry.doc.spreadsheet_id }}">
         <input type="text" name="code" placeholder="Code (e.g. SJ)" aria-label="Code for {{ entry.doc.label }}" required style="flex:1; margin-bottom:0;">
-        <input type="number" name="hours" step="0.5" placeholder="Hours" aria-label="Hours for {{ entry.doc.label }}" required style="flex:1; margin-bottom:0;">
+        <input type="number" name="hours" step="0.5" placeholder="Hours (leave blank to keep as-is)" aria-label="Hours for {{ entry.doc.label }}" style="flex:1; margin-bottom:0;">
+        <input type="text" name="operation_hours" placeholder="Operation period (e.g. 10:00 AM - 10:00 PM)" aria-label="Operation period for {{ entry.doc.label }}" style="flex:1; margin-bottom:0;">
         <button type="submit" class="btn btn-primary">Save</button>
       </form>
     {% endfor %}

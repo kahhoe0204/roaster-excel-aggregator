@@ -39,6 +39,12 @@ def test_resolve_cell_leave_shortforms_are_ignored():
         assert aggregate.resolve_cell(code, {code.upper(): 8.0}) == (None, None)
 
 
+def test_resolve_cell_code_mapped_to_none_is_ignored():
+    # A code someone explicitly marked "Ignore" — mapped, but not a
+    # working-hour code, so it's excluded like the leave shortforms.
+    assert aggregate.resolve_cell("KDM", {"KDM": None}) == (None, None)
+
+
 def test_resolve_cell_digit_bearing_unmapped_code():
     # Regression: "P14" unmapped should be flagged, not guessed as 14 hours
     assert aggregate.resolve_cell("P14", {}) == (None, "P14")
@@ -68,6 +74,35 @@ def test_code_hours_scoped_per_doc(tmp_path):
 
     assert aggregate.get_code_hours(conn, doc_a) == {"SJ": 12.0}
     assert aggregate.get_code_hours(conn, doc_b) == {"SJ": 8.0}
+
+
+def test_code_hours_can_be_marked_ignored_with_none(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
+    aggregate.set_code_hours(conn, doc_id, "KDM", None)
+
+    assert aggregate.get_code_hours(conn, doc_id) == {"KDM": None}
+
+
+def test_branch_operation_hours_roundtrip(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
+    assert aggregate.get_branch_operation_hours(conn, doc_id) == {}
+
+    aggregate.set_branch_operation_hours(conn, doc_id, "P14", "8:00 AM - 8:00 PM")
+    assert aggregate.get_branch_operation_hours(conn, doc_id) == {"P14": "8:00 AM - 8:00 PM"}
+
+
+def test_branch_operation_hours_independent_of_code_hours(tmp_path):
+    # A code can have hours, an operation period, both, or neither — setting
+    # one must not clobber the other.
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
+    aggregate.set_code_hours(conn, doc_id, "P14", 12.0)
+    aggregate.set_branch_operation_hours(conn, doc_id, "P14", "8:00 AM - 8:00 PM")
+
+    assert aggregate.get_code_hours(conn, doc_id) == {"P14": 12.0}
+    assert aggregate.get_branch_operation_hours(conn, doc_id) == {"P14": "8:00 AM - 8:00 PM"}
 
 
 def test_generate_report_matches_name_across_docs(tmp_path):
@@ -102,6 +137,19 @@ def test_generate_report_flags_unmapped_codes(tmp_path):
     )
     assert rows == []
     assert unmapped == [{"code": "XYZ", "spreadsheet_id": "SHEET1", "label": "Branch A"}]
+
+def test_generate_report_excludes_code_marked_ignored(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    aggregate.set_code_hours(conn, doc_id, "KDM", None)
+
+    grid = [["", "Alice"], ["1-Aug", "KDM"]]
+    rows, unmapped = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+    assert rows == []
+    assert unmapped == []  # ignored, not flagged as unmapped either
+
 
 def test_generate_report_skips_docs_without_matching_name(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
@@ -138,6 +186,32 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
         {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August", "operation_hours": None},
     ]
     assert unmapped == []
+
+
+def test_generate_report_uses_branch_specific_operation_hours(tmp_path):
+    # The floating column can send a relief pharmacist's hours to a branch
+    # with its own operation period, distinct from this doc's own — that
+    # period should show up on the row, falling back to the doc's own when
+    # the detected branch code has no period configured.
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 3)
+    mapping_mod.set_operation_hours(conn, "SHEET1", "9:00 AM - 9:00 PM")
+    aggregate.set_branch_operation_hours(conn, doc_id, "P14", "8:00 AM - 8:00 PM")
+
+    grid = [
+        ["", "MEGAN", "TAN MIN (PRP)", "[Pharmacist Name]"],
+        ["1-Aug", "", "12", "P14"],  # P14 has its own configured period
+        ["2-Aug", "", "", ""],
+        ["3-Aug", "", "12", "SJ"],  # SJ has none — falls back to doc's own
+    ]
+    rows, _ = aggregate.generate_report(
+        conn, "Tan Min", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+
+    assert rows == [
+        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August", "operation_hours": "8:00 AM - 8:00 PM"},
+        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "SJ / August", "operation_hours": "9:00 AM - 9:00 PM"},
+    ]
 
 
 def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):

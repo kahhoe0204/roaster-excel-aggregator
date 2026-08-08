@@ -293,10 +293,15 @@ def codes_page(request: Request):
         return RedirectResponse("/login", status_code=303)
     conn = db.init_db(config.DB_PATH)
     try:
-        docs = [
-            {"doc": doc, "codes": aggregate.get_code_hours(conn, doc["id"])}
-            for doc in mapping.list_docs(conn)
-        ]
+        docs = []
+        for doc in mapping.list_docs(conn):
+            hours_map = aggregate.get_code_hours(conn, doc["id"])
+            period_map = aggregate.get_branch_operation_hours(conn, doc["id"])
+            codes = {
+                code: {"hours": hours_map.get(code), "operation_hours": period_map.get(code)}
+                for code in hours_map.keys() | period_map.keys()
+            }
+            docs.append({"doc": doc, "codes": codes})
     finally:
         conn.close()
     return templates.TemplateResponse(request, "codes.html", {"docs": docs})
@@ -307,7 +312,8 @@ def codes_submit(
     request: Request,
     spreadsheet_id: str = Form(...),
     code: str = Form(...),
-    hours: float = Form(...),
+    hours: str = Form(""),
+    operation_hours: str = Form(""),
 ):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
@@ -315,7 +321,11 @@ def codes_submit(
     try:
         doc = mapping.get_doc(conn, spreadsheet_id)
         if doc is not None:
-            aggregate.set_code_hours(conn, doc["id"], code.strip().upper(), hours)
+            code_upper = code.strip().upper()
+            if hours.strip():
+                aggregate.set_code_hours(conn, doc["id"], code_upper, float(hours))
+            if operation_hours.strip():
+                aggregate.set_branch_operation_hours(conn, doc["id"], code_upper, operation_hours.strip())
     finally:
         conn.close()
     return RedirectResponse("/codes", status_code=303)
@@ -324,7 +334,7 @@ def codes_submit(
 class CodeHoursCreate(BaseModel):
     spreadsheet_id: str
     code: str
-    hours: float
+    hours: float | None = None  # None marks the code ignored
 
 
 @app.post("/api/codes")

@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS known_tabs (
 CREATE TABLE IF NOT EXISTS code_hours (
     doc_id INTEGER NOT NULL REFERENCES docs(id),
     code TEXT NOT NULL,
-    hours REAL NOT NULL,
+    hours REAL,
+    operation_hours TEXT,
     PRIMARY KEY (doc_id, code)
 );
 
@@ -121,6 +122,27 @@ def _migrate_code_hours_to_per_doc(conn):
     conn.commit()
 
 
+def _migrate_code_hours_hours_nullable(conn):
+    """hours used to be NOT NULL; a code can now be marked "ignored" (not a
+    working-hour code at all) by storing NULL instead of a number."""
+    cols = conn.execute("PRAGMA table_info(code_hours)").fetchall()
+    hours_col = next((c for c in cols if c["name"] == "hours"), None)
+    if hours_col is None or not hours_col["notnull"]:
+        return  # already nullable, or table doesn't exist yet
+    conn.execute("ALTER TABLE code_hours RENAME TO code_hours_old")
+    conn.execute(
+        """CREATE TABLE code_hours (
+            doc_id INTEGER NOT NULL REFERENCES docs(id),
+            code TEXT NOT NULL,
+            hours REAL,
+            PRIMARY KEY (doc_id, code)
+        )"""
+    )
+    conn.execute("INSERT INTO code_hours SELECT * FROM code_hours_old")
+    conn.execute("DROP TABLE code_hours_old")
+    conn.commit()
+
+
 def _migrate_date_config_to_per_tab(conn):
     """header_row/date_col/date_row_start/date_row_end used to live on docs,
     applied to every tab of that doc — but tabs (months) can shift row
@@ -199,5 +221,11 @@ def init_db(db_path):
         except Exception:
             pass  # column already exists on every init_db call after the first
     _migrate_code_hours_to_per_doc(conn)
+    _migrate_code_hours_hours_nullable(conn)
+    try:
+        conn.execute("ALTER TABLE code_hours ADD COLUMN operation_hours TEXT")
+        conn.commit()
+    except Exception:
+        pass  # column already exists on every init_db call after the first
     _migrate_date_config_to_per_tab(conn)
     return conn

@@ -21,11 +21,13 @@ def resolve_cell(cell, code_hours):
 
     Args:
         cell: Cell value (string or None)
-        code_hours: Dict mapping code strings to hours (float)
+        code_hours: Dict mapping code strings to hours (float), or to None
+            for a code that's mapped but explicitly ignored (not a working-
+            hour code — e.g. a code someone marked "not applicable")
 
     Returns:
         Tuple of (hours, unmapped_code) where exactly one is non-None,
-        or both are None for blank cells.
+        or both are None for blank cells and for codes mapped to None.
     """
     text = (cell or "").strip()
     if not text:
@@ -69,11 +71,34 @@ def get_code_hours(conn, doc_id):
 
 
 def set_code_hours(conn, doc_id, code, hours):
-    """Set or update a code->hours mapping for one doc."""
+    """Set or update a code->hours mapping for one doc. hours=None marks the
+    code as ignored — not a working-hour code, excluded from reports."""
     conn.execute(
         """INSERT INTO code_hours (doc_id, code, hours) VALUES (?, ?, ?)
            ON CONFLICT(doc_id, code) DO UPDATE SET hours=excluded.hours""",
         (doc_id, code, hours),
+    )
+    conn.commit()
+
+
+def get_branch_operation_hours(conn, doc_id):
+    """Code -> operation period, for codes that appear in a floating source
+    column (a relief pharmacist's covering branch) and have their own
+    operation period configured, distinct from this doc's own."""
+    rows = conn.execute(
+        "SELECT code, operation_hours FROM code_hours WHERE doc_id = ? AND operation_hours IS NOT NULL",
+        (doc_id,),
+    ).fetchall()
+    return {r["code"]: r["operation_hours"] for r in rows}
+
+
+def set_branch_operation_hours(conn, doc_id, code, operation_hours):
+    """Set the operation period for a branch code, independent of its hours
+    mapping (a code can have hours, an operation period, both, or neither)."""
+    conn.execute(
+        """INSERT INTO code_hours (doc_id, code, operation_hours) VALUES (?, ?, ?)
+           ON CONFLICT(doc_id, code) DO UPDATE SET operation_hours=excluded.operation_hours""",
+        (doc_id, code, operation_hours),
     )
     conn.commit()
 
@@ -93,6 +118,7 @@ def generate_report(conn, name, fetch_csv=None):
 
     for doc in mapping_mod.list_docs(conn):
         code_hours = get_code_hours(conn, doc["id"])
+        branch_hours = get_branch_operation_hours(conn, doc["id"])
         for tab in mapping_mod.known_tabs(conn, doc["id"]):
             try:
                 grid = fetch(doc["spreadsheet_id"], tab["gid"])
@@ -131,12 +157,13 @@ def generate_report(conn, name, fetch_csv=None):
                 # floating slot next to it records which branch she actually
                 # covered that day — that code wins over the doc's own label.
                 branch = placeholder_text or doc["label"]
+                operation_hours = branch_hours.get(placeholder_text.upper()) if placeholder_text else None
                 rows.append({
                     "name": name,
                     "date": date_cell.strip(),
                     "hours": hours,
                     "source": f"{branch} / {tab['title']}",
-                    "operation_hours": doc["operation_hours"],
+                    "operation_hours": operation_hours or doc["operation_hours"],
                 })
     rows.sort(key=lambda r: _date_sort_key(r["date"]))
     unmapped_list = sorted(

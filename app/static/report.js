@@ -68,10 +68,8 @@ function UnmappedWarning({ codes, onResolved }) {
 
   const keyOf = (u) => `${u.spreadsheet_id}:${u.code}`;
 
-  function save(u) {
+  function submit(u, hours) {
     const key = keyOf(u);
-    const hours = parseFloat(hoursByKey[key]);
-    if (!hours || hours <= 0) { alert(`Enter hours for ${u.code}`); return; }
     setSavingKey(key);
     fetch('/api/codes', {
       method: 'POST',
@@ -82,6 +80,16 @@ function UnmappedWarning({ codes, onResolved }) {
       .then(() => onResolved())
       .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
       .finally(() => setSavingKey(null));
+  }
+
+  function save(u) {
+    const hours = parseFloat(hoursByKey[keyOf(u)]);
+    if (!hours || hours <= 0) { alert(`Enter hours for ${u.code}`); return; }
+    submit(u, hours);
+  }
+
+  function ignore(u) {
+    submit(u, null);
   }
 
   return e(
@@ -109,6 +117,17 @@ function UnmappedWarning({ codes, onResolved }) {
           'button',
           { type: 'button', className: 'btn', disabled: savingKey === key, onClick: () => save(u) },
           savingKey === key ? 'Saving…' : 'Save'
+        ),
+        e(
+          'button',
+          {
+            type: 'button',
+            className: 'btn',
+            disabled: savingKey === key,
+            title: 'Not a working-hour code — leave it out of the report',
+            onClick: () => ignore(u),
+          },
+          'Ignore'
         )
       );
     })
