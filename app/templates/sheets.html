@@ -52,10 +52,12 @@
     {% endif %}
 
     <h2>Add a doc</h2>
-    <div style="display:flex; gap:.5rem; margin-bottom:1rem;">
+    <div style="display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.5rem;">
       <input type="text" id="spreadsheet-id" placeholder="Spreadsheet link or ID" aria-label="Spreadsheet link or ID" style="flex:1; margin-bottom:0;">
-      <button type="button" id="load-tabs-btn" class="btn btn-primary" onclick="loadTabs()">Load tabs</button>
+      <input type="text" id="tab-pattern" placeholder="Tab pattern, e.g. {month} {shortyear} PH" aria-label="Tab pattern" style="flex:1; margin-bottom:0;">
+      <button type="button" id="load-tabs-btn" class="btn btn-primary" onclick="loadTabs()">Continue</button>
     </div>
+    <p class="ledger-empty">Only tabs matching the pattern are imported, now and on future syncs. Use <code>{month}</code> (Jan-Dec) and <code>{shortyear}</code> (2 digits) as placeholders.</p>
     <div id="tabs"></div>
   </div>
 
@@ -96,33 +98,31 @@
 
     async function loadTabs() {
       const spreadsheetId = extractSpreadsheetId(document.getElementById('spreadsheet-id').value.trim());
+      const tabPattern = document.getElementById('tab-pattern').value.trim();
       if (!spreadsheetId) return;
+      if (!tabPattern) { alert('Enter a tab pattern first.'); return; }
       const btn = document.getElementById('load-tabs-btn');
       const container = document.getElementById('tabs');
       btn.disabled = true;
-      container.innerHTML = '<p class="ledger-empty">Loading tabs…</p>';
+      container.innerHTML = '<p class="ledger-empty">Finding the latest matching tab…</p>';
       let resp;
       try {
         resp = await fetch('/api/sheets/tabs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ spreadsheet_id: spreadsheetId }),
+          body: JSON.stringify({ spreadsheet_id: spreadsheetId, tab_pattern: tabPattern }),
         });
       } finally {
         btn.disabled = false;
       }
       if (!resp.ok) { container.innerHTML = ''; alert('Could not load tabs — check the spreadsheet ID.'); return; }
       const data = await resp.json();
-      container.innerHTML = '';
-      data.tabs.forEach((tab) => {
-        const a = document.createElement('a');
-        a.href = `/sheets/${spreadsheetId}/configure?gid=${tab.gid}`;
-        a.className = 'btn';
-        a.style.display = 'block';
-        a.style.marginBottom = '.5rem';
-        a.textContent = tab.title;
-        container.appendChild(a);
-      });
+      if (!data.latest) {
+        container.innerHTML = '';
+        alert('No tab matches that pattern yet.');
+        return;
+      }
+      location.href = `/sheets/${spreadsheetId}/configure?gid=${data.latest.gid}&tab_pattern=${encodeURIComponent(tabPattern)}`;
     }
   </script>
 </body>

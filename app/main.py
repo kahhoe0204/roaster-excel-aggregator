@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets, sync
+from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets, sync, tab_pattern
 
 
 class AlCreate(BaseModel):
@@ -28,6 +28,7 @@ class AlAction(BaseModel):
 
 class SheetTabsRequest(BaseModel):
     spreadsheet_id: str
+    tab_pattern: str = ""
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -201,18 +202,19 @@ def api_sheets_tabs(request: Request, payload: SheetTabsRequest):
     if not _user(request):
         raise HTTPException(status_code=401)
     tabs = sheets.list_tabs(payload.spreadsheet_id.strip(), config.GOOGLE_API_KEY)
-    return {"tabs": tabs}
+    latest = tab_pattern.pick_latest(payload.tab_pattern.strip(), tabs) if payload.tab_pattern.strip() else None
+    return {"tabs": tabs, "latest": latest}
 
 
 @app.get("/sheets/{spreadsheet_id}/configure", response_class=HTMLResponse)
-def configure_form(request: Request, spreadsheet_id: str, gid: str):
+def configure_form(request: Request, spreadsheet_id: str, gid: str, tab_pattern: str = ""):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
     grid = csv_fetch.fetch_csv(spreadsheet_id, gid)
     return templates.TemplateResponse(
         request,
         "configure.html",
-        {"spreadsheet_id": spreadsheet_id, "gid": gid, "grid": grid[:15], "error": None},
+        {"spreadsheet_id": spreadsheet_id, "gid": gid, "grid": grid[:15], "error": None, "tab_pattern": tab_pattern},
     )
 
 
@@ -223,6 +225,7 @@ def configure_submit(
     gid: str = Form(...),
     label: str = Form(...),
     header_row: int = Form(...),
+    tab_pattern: str = Form(""),
 ):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
@@ -237,6 +240,7 @@ def configure_submit(
                 "gid": gid,
                 "grid": grid[:15],
                 "error": "Could not auto-detect a date column from that row.",
+                "tab_pattern": tab_pattern,
             },
             status_code=400,
         )
@@ -250,6 +254,7 @@ def configure_submit(
             detected["date_col"],
             detected["row_start"],
             detected["row_end"],
+            tab_pattern=tab_pattern.strip() or None,
         )
         tabs = {t["gid"]: t["title"] for t in sheets.list_tabs(spreadsheet_id, config.GOOGLE_API_KEY)}
         mapping.mark_tab_known(conn, doc_id, gid, tabs.get(gid, gid))

@@ -139,7 +139,28 @@ def test_api_sheets_tabs_returns_tabs(tmp_path, monkeypatch):
 
     resp = client.post("/api/sheets/tabs", json={"spreadsheet_id": "SHEET1"})
     assert resp.status_code == 200
-    assert resp.json() == {"tabs": [{"gid": "111", "title": "August"}]}
+    assert resp.json() == {"tabs": [{"gid": "111", "title": "August"}], "latest": None}
+
+
+def test_api_sheets_tabs_picks_latest_matching_tab(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    monkeypatch.setattr(
+        main.sheets, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [
+            {"gid": "1", "title": "JUL 26 PH"},
+            {"gid": "2", "title": "AUG 26 PH"},
+            {"gid": "3", "title": "AUG 26 OTHER"},
+        ],
+    )
+
+    resp = client.post(
+        "/api/sheets/tabs",
+        json={"spreadsheet_id": "SHEET1", "tab_pattern": "{month} {shortyear} PH"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["latest"] == {"gid": "2", "title": "AUG 26 PH"}
 
 
 def test_delete_doc_requires_login(tmp_path, monkeypatch):
@@ -222,6 +243,48 @@ def test_configure_saves_mapping_and_lists_doc(tmp_path, monkeypatch):
     assert "SHEET1" in resp3.text
 
 
+def test_configure_form_carries_tab_pattern_into_hidden_field(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    grid = [["", "Alice"], ["1-Aug", "9.5"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: grid)
+
+    resp = client.get(
+        "/sheets/SHEET1/configure",
+        params={"gid": "111", "tab_pattern": "{month} {shortyear} PH"},
+    )
+    assert resp.status_code == 200
+    assert 'value="{month} {shortyear} PH"' in resp.text
+
+
+def test_configure_submit_persists_tab_pattern(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    grid = [["", "Alice"], ["1-Aug", "9.5"], ["2-Aug", "9.5"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: grid)
+    monkeypatch.setattr(
+        main.sheets, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [{"gid": "111", "title": "August"}],
+    )
+
+    resp = client.post(
+        "/sheets/SHEET1/configure",
+        data={
+            "gid": "111",
+            "label": "Branch A",
+            "header_row": "0",
+            "tab_pattern": "{month} {shortyear} PH",
+        },
+    )
+    assert resp.status_code == 200
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.mapping.get_doc(conn, "SHEET1")["tab_pattern"] == "{month} {shortyear} PH"
+    conn.close()
+
+
 def test_configure_rejects_ungenerated_date_range(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})
@@ -247,7 +310,7 @@ def test_api_sync_returns_new_tabs(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31, tab_pattern="August")
     conn.close()
 
     monkeypatch.setattr(

@@ -32,18 +32,19 @@ def detect_date_range(grid, header_row):
     return {"date_col": col, "row_start": start, "row_end": end}
 
 
-def save_mapping(conn, spreadsheet_id, label, header_row, date_col, row_start, row_end):
+def save_mapping(conn, spreadsheet_id, label, header_row, date_col, row_start, row_end, tab_pattern=None):
     conn.execute(
         """INSERT INTO docs
-             (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end)
-           VALUES (?, ?, ?, ?, ?, ?)
+             (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end, tab_pattern)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(spreadsheet_id) DO UPDATE SET
              label=excluded.label,
              header_row=excluded.header_row,
              date_col=excluded.date_col,
              date_row_start=excluded.date_row_start,
-             date_row_end=excluded.date_row_end""",
-        (spreadsheet_id, label, header_row, date_col, row_start, row_end),
+             date_row_end=excluded.date_row_end,
+             tab_pattern=excluded.tab_pattern""",
+        (spreadsheet_id, label, header_row, date_col, row_start, row_end, tab_pattern),
     )
     conn.commit()
     return get_doc(conn, spreadsheet_id)["id"]
