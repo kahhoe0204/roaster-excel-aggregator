@@ -191,6 +191,7 @@ def delete_doc(request: Request, spreadsheet_id: str):
         raise HTTPException(status_code=401)
     conn = db.init_db(config.DB_PATH)
     try:
+        aggregate.remove_codes_unique_to_doc(conn, spreadsheet_id)
         mapping.delete_doc(conn, spreadsheet_id)
     finally:
         conn.close()

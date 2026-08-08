@@ -53,6 +53,63 @@ def resolve_cell(cell, code_hours):
     return None, code
 
 
+def _extract_code_token(cell):
+    text = (cell or "").strip()
+    if not text:
+        return None
+    try:
+        float(text)
+        return None  # pure number, not a code
+    except ValueError:
+        pass
+    code_match = _CODE_RE.match(text)
+    return code_match.group().upper() if code_match else text.upper()
+
+
+def codes_used_by_doc(conn, doc, fetch_csv=None):
+    """Every distinct code token appearing in doc's date rows (excluding the
+    date column itself, and the header row's staff names)."""
+    fetch = fetch_csv or csv_fetch_mod.fetch_csv
+    codes = set()
+    for tab in mapping_mod.known_tabs(conn, doc["id"]):
+        try:
+            grid = fetch(doc["spreadsheet_id"], tab["gid"])
+        except requests.exceptions.HTTPError:
+            continue
+        for r in range(doc["date_row_start"], doc["date_row_end"] + 1):
+            if r >= len(grid):
+                break
+            for c, cell in enumerate(grid[r]):
+                if c == doc["date_col"]:
+                    continue
+                code = _extract_code_token(cell)
+                if code:
+                    codes.add(code)
+    return codes
+
+
+def remove_codes_unique_to_doc(conn, spreadsheet_id, fetch_csv=None):
+    """Drop code_hours entries only ever used by this doc's sheets — call
+    before deleting the doc. Codes still used by other docs are left alone.
+    """
+    doc = mapping_mod.get_doc(conn, spreadsheet_id)
+    if doc is None:
+        return
+    this_doc_codes = codes_used_by_doc(conn, doc, fetch_csv=fetch_csv)
+    if not this_doc_codes:
+        return
+    other_codes = set()
+    for other in mapping_mod.list_docs(conn):
+        if other["id"] == doc["id"]:
+            continue
+        other_codes |= codes_used_by_doc(conn, other, fetch_csv=fetch_csv)
+    orphaned = (this_doc_codes - other_codes) & set(get_code_hours(conn))
+    for code in orphaned:
+        conn.execute("DELETE FROM code_hours WHERE code = ?", (code,))
+    if orphaned:
+        conn.commit()
+
+
 def _date_sort_key(date_str):
     # No year in "1-Aug" style cells — sort by month/day only, unparseable
     # dates keep their original relative order at the end.

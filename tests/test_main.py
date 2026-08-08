@@ -185,6 +185,35 @@ def test_delete_doc_removes_it_from_list(tmp_path, monkeypatch):
     assert "SHEET1" not in resp2.text
 
 
+def test_delete_doc_drops_codes_only_it_used(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_a = main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    doc_b = main.mapping.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
+    main.mapping.mark_tab_known(conn, doc_a, "111", "August")
+    main.mapping.mark_tab_known(conn, doc_b, "222", "August")
+    main.aggregate.set_code_hours(conn, "PMT", 12.0)
+    main.aggregate.set_code_hours(conn, "SJ", 12.0)
+    conn.close()
+
+    grids = {
+        "SHEET1": [["", "Alice"], ["1-Aug", "PMT"]],
+        "SHEET2": [["", "Bob"], ["1-Aug", "SJ"]],
+    }
+    monkeypatch.setattr(
+        main.aggregate.csv_fetch_mod, "fetch_csv",
+        lambda spreadsheet_id, gid, timeout=15: grids[spreadsheet_id],
+    )
+
+    client.post("/sheets/SHEET1/delete")
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.aggregate.get_code_hours(conn) == {"SJ": 12.0}
+    conn.close()
+
+
 def test_set_operation_hours_requires_login(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.post("/sheets/SHEET1/operation-hours", data={"hours": "12"})
