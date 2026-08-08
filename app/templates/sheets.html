@@ -51,6 +51,25 @@
       <p class="ledger-empty">No docs configured yet.</p>
     {% endif %}
 
+    {% if pending %}
+      <h2>Needs configuring</h2>
+      <p class="ledger-empty">Sync found these tabs but needs the header row confirmed before they're included in reports.</p>
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead><tr><th>Doc</th><th>Tab</th><th></th></tr></thead>
+          <tbody>
+            {% for p in pending %}
+            <tr>
+              <td>{{ p.label }}</td>
+              <td>{{ p.title }}</td>
+              <td><a class="btn" href="/sheets/{{ p.spreadsheet_id }}/configure?gid={{ p.gid }}">Configure</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
     <h2>Add a doc</h2>
     <div style="display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:.5rem;">
       <input type="text" id="spreadsheet-id" placeholder="Spreadsheet link or ID" aria-label="Spreadsheet link or ID" style="flex:1; margin-bottom:0;">

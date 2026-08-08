@@ -2,6 +2,7 @@ import requests
 
 from app import aggregate, db as db_mod
 from app import mapping as mapping_mod
+from tests.conftest import configure_doc
 
 
 def test_resolve_cell_numeric():
@@ -50,7 +51,7 @@ def test_resolve_cell_digit_bearing_mapped_code():
 
 def test_code_hours_roundtrip(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
     assert aggregate.get_code_hours(conn, doc_id) == {}
     aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
     aggregate.set_code_hours(conn, doc_id, "P14", 12.0)
@@ -60,8 +61,8 @@ def test_code_hours_roundtrip(tmp_path):
 
 def test_code_hours_scoped_per_doc(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
+    doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
+    doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B")
     aggregate.set_code_hours(conn, doc_a, "SJ", 12.0)
     aggregate.set_code_hours(conn, doc_b, "SJ", 8.0)
 
@@ -71,8 +72,7 @@ def test_code_hours_scoped_per_doc(tmp_path):
 
 def test_generate_report_matches_name_across_docs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    doc_id = configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
 
     grid = [
@@ -94,8 +94,7 @@ def test_generate_report_matches_name_across_docs(tmp_path):
 
 def test_generate_report_flags_unmapped_codes(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
 
     grid = [["", "Alice"], ["1-Aug", "XYZ"]]
     rows, unmapped = aggregate.generate_report(
@@ -106,8 +105,7 @@ def test_generate_report_flags_unmapped_codes(tmp_path):
 
 def test_generate_report_skips_docs_without_matching_name(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
 
     grid = [["", "Bob"], ["1-Aug", "9"]]
     rows, unmapped = aggregate.generate_report(
@@ -123,8 +121,7 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
     # as a code in the "[Pharmacist Name]" floating slot next to it — that
     # code should win over this doc's own branch label.
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 3)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 3)
 
     grid = [
         ["", "MEGAN", "TAN MIN (PRP)", "[Pharmacist Name]"],
@@ -145,8 +142,7 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
 
 def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    doc_id = configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
 
     grid = [
@@ -165,8 +161,7 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
 
 def test_generate_report_carries_doc_operation_hours(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     mapping_mod.set_operation_hours(conn, "SHEET1", "10:00 AM - 10:00 PM")
 
     grid = [["", "Alice"], ["1-Aug", "9.5"]]
@@ -181,10 +176,8 @@ def test_generate_report_carries_doc_operation_hours(tmp_path):
 
 def test_generate_report_sorts_rows_by_date_ascending(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 2)
-    doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 2)
-    mapping_mod.mark_tab_known(conn, doc_a, "111", "August")
-    mapping_mod.mark_tab_known(conn, doc_b, "222", "July")
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 2, gid="111", title="August")
+    configure_doc(conn, "SHEET2", "Branch B", 0, 0, 1, 2, gid="222", title="July")
 
     grids = {
         "SHEET1": [["", "Alice"], ["10-Aug", "9"], ["2-Aug", "9"]],
@@ -201,9 +194,11 @@ def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     # Regression: a deleted/renamed tab's gid causes Google to 400 on export;
     # that tab should be skipped, not crash the whole report.
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
     mapping_mod.mark_tab_known(conn, doc_id, "1", "Stale")
     mapping_mod.mark_tab_known(conn, doc_id, "2", "Live")
+    mapping_mod.configure_tab(conn, doc_id, "1", 0, 0, 1, 1)
+    mapping_mod.configure_tab(conn, doc_id, "2", 0, 0, 1, 1)
 
     good_grid = [["", "Alice"], ["1-Aug", "9.5"]]
 

@@ -56,3 +56,34 @@ def test_init_db_migration_is_idempotent(tmp_path):
     db.init_db(db_path)
     conn = db.init_db(db_path)  # second call should not error or duplicate
     assert conn.execute("SELECT * FROM code_hours").fetchall() == []
+
+def test_init_db_migrates_doc_date_config_to_known_tabs(tmp_path):
+    # Regression: header_row/date_col used to live on docs and apply to
+    # every tab; now they're per-tab since months can shift row offsets.
+    # Existing already-known tabs should inherit the doc's old values.
+    db_path = str(tmp_path / "old.db")
+    raw = sqlite3.connect(db_path)
+    raw.execute("""CREATE TABLE docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        spreadsheet_id TEXT UNIQUE NOT NULL,
+        label TEXT NOT NULL,
+        header_row INTEGER NOT NULL,
+        date_col INTEGER NOT NULL,
+        date_row_start INTEGER NOT NULL,
+        date_row_end INTEGER NOT NULL
+    )""")
+    raw.execute(
+        "INSERT INTO docs (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end) "
+        "VALUES ('SHEET1', 'Branch A', 5, 1, 6, 36)"
+    )
+    raw.execute("CREATE TABLE known_tabs (doc_id INTEGER NOT NULL, gid TEXT NOT NULL, title TEXT, PRIMARY KEY (doc_id, gid))")
+    raw.execute("INSERT INTO known_tabs (doc_id, gid, title) VALUES (1, '111', 'August')")
+    raw.commit()
+    raw.close()
+
+    conn = db.init_db(db_path)
+    tab = conn.execute("SELECT * FROM known_tabs WHERE gid='111'").fetchone()
+
+    assert (tab["header_row"], tab["date_col"], tab["date_row_start"], tab["date_row_end"]) == (5, 1, 6, 36)
+    doc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(docs)").fetchall()]
+    assert "header_row" not in doc_cols

@@ -167,9 +167,10 @@ def sheets_page(request: Request):
     conn = db.init_db(config.DB_PATH)
     try:
         docs = mapping.list_docs(conn)
+        pending = mapping.pending_tabs(conn)
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "sheets.html", {"docs": docs})
+    return templates.TemplateResponse(request, "sheets.html", {"docs": docs, "pending": pending})
 
 
 @app.post("/sheets/{spreadsheet_id}/operation-hours")
@@ -211,10 +212,22 @@ def configure_form(request: Request, spreadsheet_id: str, gid: str, tab_pattern:
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
     grid = csv_fetch.fetch_csv(spreadsheet_id, gid)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        doc = mapping.get_doc(conn, spreadsheet_id)
+    finally:
+        conn.close()
     return templates.TemplateResponse(
         request,
         "configure.html",
-        {"spreadsheet_id": spreadsheet_id, "gid": gid, "grid": grid[:15], "error": None, "tab_pattern": tab_pattern},
+        {
+            "spreadsheet_id": spreadsheet_id,
+            "gid": gid,
+            "grid": grid[:15],
+            "error": None,
+            "tab_pattern": tab_pattern or (doc["tab_pattern"] if doc else "") or "",
+            "label": doc["label"] if doc else "",
+        },
     )
 
 
@@ -241,23 +254,18 @@ def configure_submit(
                 "grid": grid[:15],
                 "error": "Could not auto-detect a date column from that row.",
                 "tab_pattern": tab_pattern,
+                "label": label,
             },
             status_code=400,
         )
     conn = db.init_db(config.DB_PATH)
     try:
-        doc_id = mapping.save_mapping(
-            conn,
-            spreadsheet_id,
-            label,
-            header_row,
-            detected["date_col"],
-            detected["row_start"],
-            detected["row_end"],
-            tab_pattern=tab_pattern.strip() or None,
-        )
+        doc_id = mapping.save_mapping(conn, spreadsheet_id, label, tab_pattern=tab_pattern.strip() or None)
         tabs = {t["gid"]: t["title"] for t in sheets.list_tabs(spreadsheet_id, config.GOOGLE_API_KEY)}
         mapping.mark_tab_known(conn, doc_id, gid, tabs.get(gid, gid))
+        mapping.configure_tab(
+            conn, doc_id, gid, header_row, detected["date_col"], detected["row_start"], detected["row_end"]
+        )
     finally:
         conn.close()
     return RedirectResponse("/sheets", status_code=303)

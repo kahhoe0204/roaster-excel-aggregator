@@ -98,7 +98,7 @@ def generate_report(conn, name, fetch_csv=None):
                 grid = fetch(doc["spreadsheet_id"], tab["gid"])
             except requests.exceptions.HTTPError:
                 continue
-            header = grid[doc["header_row"]] if doc["header_row"] < len(grid) else []
+            header = grid[tab["header_row"]] if tab["header_row"] < len(grid) else []
             name_col = next(
                 (i for i, cell in enumerate(header) if name_lower in cell.strip().lower()),
                 None,
@@ -110,11 +110,11 @@ def generate_report(conn, name, fetch_csv=None):
                 placeholder_col < len(header)
                 and _PLACEHOLDER_HEADER_RE.match(header[placeholder_col].strip())
             )
-            for r in range(doc["date_row_start"], doc["date_row_end"] + 1):
+            for r in range(tab["date_row_start"], tab["date_row_end"] + 1):
                 if r >= len(grid):
                     break
                 row = grid[r]
-                date_cell = row[doc["date_col"]] if doc["date_col"] < len(row) else ""
+                date_cell = row[tab["date_col"]] if tab["date_col"] < len(row) else ""
                 value_cell = row[name_col] if name_col < len(row) else ""
                 placeholder_text = ""
                 if has_placeholder:

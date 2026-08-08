@@ -58,19 +58,14 @@ def detect_date_range(grid, header_row, search_rows=10):
     return {"date_col": col, "row_start": start, "row_end": end}
 
 
-def save_mapping(conn, spreadsheet_id, label, header_row, date_col, row_start, row_end, tab_pattern=None):
+def save_mapping(conn, spreadsheet_id, label, tab_pattern=None):
     conn.execute(
-        """INSERT INTO docs
-             (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end, tab_pattern)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO docs (spreadsheet_id, label, tab_pattern)
+           VALUES (?, ?, ?)
            ON CONFLICT(spreadsheet_id) DO UPDATE SET
              label=excluded.label,
-             header_row=excluded.header_row,
-             date_col=excluded.date_col,
-             date_row_start=excluded.date_row_start,
-             date_row_end=excluded.date_row_end,
              tab_pattern=excluded.tab_pattern""",
-        (spreadsheet_id, label, header_row, date_col, row_start, row_end, tab_pattern),
+        (spreadsheet_id, label, tab_pattern),
     )
     conn.commit()
     return get_doc(conn, spreadsheet_id)["id"]
@@ -113,6 +108,17 @@ def mark_tab_known(conn, doc_id, gid, title):
     conn.commit()
 
 
+def configure_tab(conn, doc_id, gid, header_row, date_col, row_start, row_end):
+    """Set the header row / date range for one specific tab. Tabs sync
+    discovers but no one has confirmed yet keep these NULL ("pending")."""
+    conn.execute(
+        """UPDATE known_tabs SET header_row=?, date_col=?, date_row_start=?, date_row_end=?
+           WHERE doc_id=? AND gid=?""",
+        (header_row, date_col, row_start, row_end, doc_id, gid),
+    )
+    conn.commit()
+
+
 def known_tab_gids(conn, doc_id):
     rows = conn.execute(
         "SELECT gid FROM known_tabs WHERE doc_id = ?", (doc_id,)
@@ -121,7 +127,24 @@ def known_tab_gids(conn, doc_id):
 
 
 def known_tabs(conn, doc_id):
+    """Tabs of this doc that have a confirmed header row/date range —
+    the ones actually readable for a report. Pending (unconfigured) tabs
+    are excluded; see `pending_tabs`."""
     rows = conn.execute(
-        "SELECT gid, title FROM known_tabs WHERE doc_id = ?", (doc_id,)
+        """SELECT gid, title, header_row, date_col, date_row_start, date_row_end
+           FROM known_tabs WHERE doc_id = ? AND header_row IS NOT NULL""",
+        (doc_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def pending_tabs(conn):
+    """Tabs that sync has discovered but no one has confirmed a header row
+    for yet, across all docs — the "needs configuring" queue."""
+    rows = conn.execute(
+        """SELECT known_tabs.doc_id, known_tabs.gid, known_tabs.title,
+                  docs.spreadsheet_id, docs.label
+           FROM known_tabs JOIN docs ON docs.id = known_tabs.doc_id
+           WHERE known_tabs.header_row IS NULL"""
     ).fetchall()
     return [dict(r) for r in rows]

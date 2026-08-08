@@ -6,10 +6,6 @@ CREATE TABLE IF NOT EXISTS docs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     spreadsheet_id TEXT UNIQUE NOT NULL,
     label TEXT NOT NULL,
-    header_row INTEGER NOT NULL,
-    date_col INTEGER NOT NULL,
-    date_row_start INTEGER NOT NULL,
-    date_row_end INTEGER NOT NULL,
     operation_hours TEXT,
     tab_pattern TEXT
 );
@@ -18,6 +14,10 @@ CREATE TABLE IF NOT EXISTS known_tabs (
     doc_id INTEGER NOT NULL REFERENCES docs(id),
     gid TEXT NOT NULL,
     title TEXT,
+    header_row INTEGER,
+    date_col INTEGER,
+    date_row_start INTEGER,
+    date_row_end INTEGER,
     PRIMARY KEY (doc_id, gid)
 );
 
@@ -121,6 +121,65 @@ def _migrate_code_hours_to_per_doc(conn):
     conn.commit()
 
 
+def _migrate_date_config_to_per_tab(conn):
+    """header_row/date_col/date_row_start/date_row_end used to live on docs,
+    applied to every tab of that doc — but tabs (months) can shift row
+    offsets relative to each other, so they're now per-tab on known_tabs.
+    Existing values are copied onto every already-known tab of that doc as
+    a starting point; tabs discovered by sync afterward stay NULL
+    ("pending") until a person confirms the header row for that specific tab.
+    """
+    doc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(docs)").fetchall()]
+    if "header_row" not in doc_cols:
+        return  # already migrated (or a fresh install that never had it)
+
+    known_cols = [r["name"] for r in conn.execute("PRAGMA table_info(known_tabs)").fetchall()]
+    if "header_row" not in known_cols:
+        for ddl in (
+            "ALTER TABLE known_tabs ADD COLUMN header_row INTEGER",
+            "ALTER TABLE known_tabs ADD COLUMN date_col INTEGER",
+            "ALTER TABLE known_tabs ADD COLUMN date_row_start INTEGER",
+            "ALTER TABLE known_tabs ADD COLUMN date_row_end INTEGER",
+        ):
+            conn.execute(ddl)
+
+    old_docs = conn.execute(
+        "SELECT id, header_row, date_col, date_row_start, date_row_end FROM docs"
+    ).fetchall()
+    for doc in old_docs:
+        conn.execute(
+            """UPDATE known_tabs SET header_row=?, date_col=?, date_row_start=?, date_row_end=?
+               WHERE doc_id=?""",
+            (doc["header_row"], doc["date_col"], doc["date_row_start"], doc["date_row_end"], doc["id"]),
+        )
+
+    conn.commit()  # foreign_keys can only be toggled outside a transaction
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+    except Exception:
+        pass
+    conn.execute("ALTER TABLE docs RENAME TO docs_old")
+    conn.execute(
+        """CREATE TABLE docs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            spreadsheet_id TEXT UNIQUE NOT NULL,
+            label TEXT NOT NULL,
+            operation_hours TEXT,
+            tab_pattern TEXT
+        )"""
+    )
+    conn.execute(
+        "INSERT INTO docs (id, spreadsheet_id, label, operation_hours, tab_pattern) "
+        "SELECT id, spreadsheet_id, label, operation_hours, tab_pattern FROM docs_old"
+    )
+    conn.execute("DROP TABLE docs_old")
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
+    conn.commit()
+
+
 def init_db(db_path):
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
@@ -135,4 +194,5 @@ def init_db(db_path):
         except Exception:
             pass  # column already exists on every init_db call after the first
     _migrate_code_hours_to_per_doc(conn)
+    _migrate_date_config_to_per_tab(conn)
     return conn

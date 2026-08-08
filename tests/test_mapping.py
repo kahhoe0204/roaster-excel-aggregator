@@ -88,23 +88,22 @@ def test_detect_date_range_gives_up_beyond_search_window():
 
 def test_save_and_get_mapping(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
     doc = mapping.get_doc(conn, "SHEET1")
     assert doc["id"] == doc_id
     assert doc["label"] == "Branch A"
-    assert doc["date_row_end"] == 31
 
 def test_save_mapping_upserts_on_same_spreadsheet_id(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    mapping.save_mapping(conn, "SHEET1", "Old Label", 0, 0, 1, 31)
-    mapping.save_mapping(conn, "SHEET1", "New Label", 0, 0, 1, 30)
+    mapping.save_mapping(conn, "SHEET1", "Old Label")
+    mapping.save_mapping(conn, "SHEET1", "New Label")
     docs = mapping.list_docs(conn)
     assert len(docs) == 1
     assert docs[0]["label"] == "New Label"
 
 def test_delete_doc_removes_doc_and_known_tabs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
     mapping.mark_tab_known(conn, doc_id, "111", "August")
 
     mapping.delete_doc(conn, "SHEET1")
@@ -120,7 +119,7 @@ def test_delete_doc_missing_spreadsheet_id_is_noop(tmp_path):
 
 def test_set_operation_hours(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    mapping.save_mapping(conn, "SHEET1", "Branch A")
     assert mapping.get_doc(conn, "SHEET1")["operation_hours"] is None
 
     mapping.set_operation_hours(conn, "SHEET1", "10:00 AM - 10:00 PM")
@@ -128,15 +127,36 @@ def test_set_operation_hours(tmp_path):
     assert mapping.get_doc(conn, "SHEET1")["operation_hours"] == "10:00 AM - 10:00 PM"
 
 
-def test_mark_and_list_known_tabs(tmp_path):
+def test_known_tab_gids_includes_pending_and_configured(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
     mapping.mark_tab_known(conn, doc_id, "111", "August")
     mapping.mark_tab_known(conn, doc_id, "222", "September")
     mapping.mark_tab_known(conn, doc_id, "111", "August")  # idempotent
 
-    gids = mapping.known_tab_gids(conn, doc_id)
-    assert gids == {"111", "222"}
+    assert mapping.known_tab_gids(conn, doc_id) == {"111", "222"}
+
+
+def test_known_tabs_excludes_unconfigured_pending_tabs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A")
+    mapping.mark_tab_known(conn, doc_id, "111", "August")
+    mapping.mark_tab_known(conn, doc_id, "222", "September")
+    mapping.configure_tab(conn, doc_id, "111", header_row=0, date_col=0, row_start=1, row_end=31)
 
     tabs = {t["gid"]: t["title"] for t in mapping.known_tabs(conn, doc_id)}
-    assert tabs == {"111": "August", "222": "September"}
+    assert tabs == {"111": "August"}  # "222" still pending, not returned
+
+
+def test_pending_tabs_lists_unconfigured_tabs_across_docs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_a = mapping.save_mapping(conn, "SHEET1", "Branch A")
+    doc_b = mapping.save_mapping(conn, "SHEET2", "Branch B")
+    mapping.mark_tab_known(conn, doc_a, "111", "August")
+    mapping.mark_tab_known(conn, doc_b, "222", "September")
+    mapping.configure_tab(conn, doc_a, "111", header_row=0, date_col=0, row_start=1, row_end=31)
+
+    pending = mapping.pending_tabs(conn)
+    assert pending == [
+        {"doc_id": doc_b, "gid": "222", "title": "September", "spreadsheet_id": "SHEET2", "label": "Branch B"},
+    ]

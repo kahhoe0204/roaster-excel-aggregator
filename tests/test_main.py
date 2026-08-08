@@ -175,7 +175,7 @@ def test_delete_doc_removes_it_from_list(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A")
     conn.close()
 
     resp = client.post("/sheets/SHEET1/delete", follow_redirects=False)
@@ -191,8 +191,8 @@ def test_delete_doc_drops_its_own_codes_but_not_other_docs(tmp_path, monkeypatch
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    doc_a = main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    doc_b = main.mapping.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
+    doc_a = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    doc_b = main.mapping.save_mapping(conn, "SHEET2", "Branch B")
     main.aggregate.set_code_hours(conn, doc_a, "SJ", 12.0)
     main.aggregate.set_code_hours(conn, doc_b, "SJ", 8.0)
     conn.close()
@@ -216,7 +216,7 @@ def test_set_operation_hours_saves_and_redirects(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A")
     conn.close()
 
     resp = client.post(
@@ -307,6 +307,59 @@ def test_configure_submit_persists_tab_pattern(tmp_path, monkeypatch):
     conn.close()
 
 
+def test_sheets_page_lists_pending_tabs_needing_configuration(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
+    main.mapping.mark_tab_known(conn, doc_id, "222", "AUG 26 PH")  # discovered by sync, unconfigured
+    conn.close()
+
+    resp = client.get("/sheets")
+    assert resp.status_code == 200
+    assert "Needs configuring" in resp.text
+    assert "AUG 26 PH" in resp.text
+
+
+def test_configure_submit_sets_header_row_independently_per_tab(tmp_path, monkeypatch):
+    # Regression: header_row/date range used to be shared by the whole doc,
+    # which broke when a later month's tab has a different row offset than
+    # an earlier one. Configuring tab 2 must not disturb tab 1's config.
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    monkeypatch.setattr(
+        main.sheets, "list_tabs",
+        lambda spreadsheet_id, api_key, timeout=15: [
+            {"gid": "111", "title": "JUL 26 PH"},
+            {"gid": "222", "title": "AUG 26 PH"},
+        ],
+    )
+
+    jul_grid = [["", "Alice"], ["1-Jul", "9"], ["2-Jul", "9"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: jul_grid)
+    client.post(
+        "/sheets/SHEET1/configure",
+        data={"gid": "111", "label": "Branch A", "header_row": "0"},
+    )
+
+    aug_grid = [["filler"], ["", "Alice"], ["1-Aug", "9"], ["2-Aug", "9"]]
+    monkeypatch.setattr(main.csv_fetch, "fetch_csv", lambda spreadsheet_id, gid, timeout=15: aug_grid)
+    client.post(
+        "/sheets/SHEET1/configure",
+        data={"gid": "222", "label": "Branch A", "header_row": "1"},
+    )
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.get_doc(conn, "SHEET1")["id"]
+    tabs = {t["gid"]: t for t in main.mapping.known_tabs(conn, doc_id)}
+    conn.close()
+
+    assert tabs["111"]["header_row"] == 0
+    assert tabs["222"]["header_row"] == 1
+
+
 def test_configure_rejects_ungenerated_date_range(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})
@@ -332,7 +385,7 @@ def test_api_sync_returns_new_tabs(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31, tab_pattern="August")
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", tab_pattern="August")
     conn.close()
 
     monkeypatch.setattr(
@@ -357,7 +410,7 @@ def test_codes_page_lists_and_saves(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A")
     conn.close()
 
     resp = client.get("/codes")
@@ -390,7 +443,7 @@ def test_api_set_code_hours_saves(tmp_path, monkeypatch):
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
-    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A")
     conn.close()
 
     resp = client.post("/api/codes", json={"spreadsheet_id": "SHEET1", "code": "f", "hours": 9.0})
