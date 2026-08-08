@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 
 import requests
 
@@ -50,6 +51,15 @@ def resolve_cell(cell, code_hours):
         return code_hours[code], None
 
     return None, code
+
+
+def _date_sort_key(date_str):
+    # No year in "1-Aug" style cells — sort by month/day only, unparseable
+    # dates keep their original relative order at the end.
+    try:
+        return (0, datetime.strptime(f"{date_str} 2000", "%d-%b %Y"))
+    except ValueError:
+        return (1, date_str)
 
 
 def get_code_hours(conn):
@@ -126,4 +136,5 @@ def generate_report(conn, name, fetch_csv=None):
                     "hours": hours,
                     "source": f"{branch} / {tab['title']}",
                 })
+    rows.sort(key=lambda r: _date_sort_key(r["date"]))
     return rows, sorted(unmapped)

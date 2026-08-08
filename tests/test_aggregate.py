@@ -151,6 +151,24 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     assert unmapped == []
 
 
+def test_generate_report_sorts_rows_by_date_ascending(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 2)
+    doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 2)
+    mapping_mod.mark_tab_known(conn, doc_a, "111", "August")
+    mapping_mod.mark_tab_known(conn, doc_b, "222", "July")
+
+    grids = {
+        "SHEET1": [["", "Alice"], ["10-Aug", "9"], ["2-Aug", "9"]],
+        "SHEET2": [["", "Alice"], ["31-Jul", "9"], ["20-Jul", "9"]],
+    }
+    rows, _ = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grids[sid]
+    )
+
+    assert [r["date"] for r in rows] == ["20-Jul", "31-Jul", "2-Aug", "10-Aug"]
+
+
 def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     # Regression: a deleted/renamed tab's gid causes Google to 400 on export;
     # that tab should be skipped, not crash the whole report.
