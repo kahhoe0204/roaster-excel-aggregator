@@ -1,5 +1,7 @@
 import re
 
+import requests
+
 from . import mapping as mapping_mod
 from . import csv_fetch as csv_fetch_mod
 
@@ -72,7 +74,10 @@ def generate_report(conn, name, fetch_csv=None):
 
     for doc in mapping_mod.list_docs(conn):
         for tab in mapping_mod.known_tabs(conn, doc["id"]):
-            grid = fetch(doc["spreadsheet_id"], tab["gid"])
+            try:
+                grid = fetch(doc["spreadsheet_id"], tab["gid"])
+            except requests.exceptions.HTTPError:
+                continue
             header = grid[doc["header_row"]] if doc["header_row"] < len(grid) else []
             name_col = next(
                 (i for i, cell in enumerate(header) if name_lower in cell.strip().lower()),
