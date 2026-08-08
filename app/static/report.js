@@ -57,7 +57,12 @@ function groupByMonthTab(rows) {
 }
 
 function HoursTable({ rows, name }) {
+  const groups = groupByMonthTab(rows);
+  const [activeTab, setActiveTab] = React.useState(groups[0] ? groups[0].tab : null);
+
   if (!rows.length) return e('p', { className: 'ledger-empty' }, 'No hours on record.');
+
+  const active = groups.find((g) => g.tab === activeTab) || groups[0];
 
   function saveRemark(date, note) {
     fetch('/api/remarks', {
@@ -82,8 +87,7 @@ function HoursTable({ rows, name }) {
   function renderGroup(group) {
     return e(
       'div',
-      { key: group.tab, style: { marginBottom: '1.5rem' } },
-      e('h3', null, group.tab),
+      { key: group.tab },
       e(
         'div',
         { className: 'table-wrap' },
@@ -150,7 +154,27 @@ function HoursTable({ rows, name }) {
     );
   }
 
-  return e(React.Fragment, null, groupByMonthTab(rows).map(renderGroup));
+  return e(
+    React.Fragment,
+    null,
+    e(
+      'div',
+      { style: { display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginBottom: '1rem' } },
+      groups.map((g) =>
+        e(
+          'button',
+          {
+            key: g.tab,
+            type: 'button',
+            className: g.tab === active.tab ? 'btn btn-primary' : 'btn',
+            onClick: () => setActiveTab(g.tab),
+          },
+          `${g.tab} (${g.rows.length})`
+        )
+      )
+    ),
+    renderGroup(active)
+  );
 }
 
 function UnmappedWarning({ codes, onResolved }) {
