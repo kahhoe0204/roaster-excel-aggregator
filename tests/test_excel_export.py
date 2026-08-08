@@ -52,6 +52,17 @@ def test_rows_to_xlsx_autosizes_columns_to_max_value_length():
     assert ws.column_dimensions["E"].width == max(len("Source"), len("A Very Long Branch Name / August")) + 10
 
 
+def test_rows_to_xlsx_centers_the_hours_column():
+    rows = [
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.0, "source": "Branch A / August", "operation_hours": None},
+    ]
+    data = excel_export.rows_to_xlsx(rows)
+    wb = load_workbook(BytesIO(data))
+    ws = wb["August"]
+
+    assert ws["D2"].alignment.horizontal == "center"
+
+
 def test_rows_to_xlsx_colors_rows_by_branch():
     rows = [
         {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.0, "source": "Branch A / August"},

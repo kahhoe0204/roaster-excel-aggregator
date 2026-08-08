@@ -2,7 +2,9 @@ from datetime import datetime
 from io import BytesIO
 
 from openpyxl import Workbook
-from openpyxl.styles import PatternFill
+from openpyxl.styles import Alignment, PatternFill
+
+_CENTER = Alignment(horizontal="center")
 
 _PALETTE = [
     "FFF2CC", "D9EAD3", "CFE2F3", "F4CCCC",
@@ -54,6 +56,7 @@ def rows_to_xlsx(rows):
         ])
         for cell in ws[ws.max_row]:
             cell.fill = fill_for(_branch(row["source"]))
+        ws.cell(row=ws.max_row, column=4).alignment = _CENTER
 
     if not sheets:
         wb.create_sheet(title="Report").append(

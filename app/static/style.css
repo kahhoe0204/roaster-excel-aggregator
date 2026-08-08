@@ -248,7 +248,7 @@ table.ledger tbody tr:hover {
 
 table.ledger td.num {
   font-family: 'IBM Plex Mono', monospace;
-  text-align: right;
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 

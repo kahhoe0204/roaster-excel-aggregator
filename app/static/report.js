@@ -30,6 +30,32 @@ function NameForm({ name, loading, onSubmit }) {
   );
 }
 
+const _MONTH_ABBR = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const _MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function monthTabOf(dateStr) {
+  const m = dateStr.match(/-([A-Za-z]{3})$/);
+  const idx = m ? _MONTH_ABBR.indexOf(m[1].toLowerCase()) : -1;
+  return idx === -1 ? 'Other' : _MONTH_NAMES[idx];
+}
+
+function groupByMonthTab(rows) {
+  const groups = [];
+  const indexByTab = {};
+  rows.forEach((r) => {
+    const tab = monthTabOf(r.date);
+    if (!(tab in indexByTab)) {
+      indexByTab[tab] = groups.length;
+      groups.push({ tab, rows: [] });
+    }
+    groups[indexByTab[tab]].rows.push(r);
+  });
+  return groups;
+}
+
 function HoursTable({ rows, name }) {
   if (!rows.length) return e('p', { className: 'ledger-empty' }, 'No hours on record.');
 
@@ -41,49 +67,59 @@ function HoursTable({ rows, name }) {
     }).catch((err) => console.error(err));
   }
 
-  return e(
-    'div',
-    { className: 'table-wrap' },
-    e(
-      'table',
-      { className: 'ledger' },
+  function renderGroup(group) {
+    return e(
+      'div',
+      { key: group.tab, style: { marginBottom: '1.5rem' } },
+      e('h3', null, group.tab),
       e(
-        'thead',
-        null,
+        'div',
+        { className: 'table-wrap' },
         e(
-          'tr', null,
-          e('th', null, 'Date'), e('th', null, 'Day'), e('th', null, 'Hours'),
-          e('th', null, 'Source'), e('th', null, 'Remark')
-        )
-      ),
-      e(
-        'tbody',
-        null,
-        rows.map((r, i) =>
+          'table',
+          { className: 'ledger' },
           e(
-            'tr',
-            { key: i },
-            e('td', null, r.date),
-            e('td', null, r.day),
-            e('td', { className: 'num' }, r.hours.toFixed(2)),
-            e('td', null, r.source),
+            'thead',
+            null,
             e(
-              'td',
-              null,
-              e('input', {
-                type: 'text',
-                defaultValue: r.remark || '',
-                placeholder: 'e.g. bank in',
-                'aria-label': `Remark for ${r.date}`,
-                onBlur: (ev) => saveRemark(r.date, ev.target.value.trim()),
-                style: { width: '100%', marginBottom: 0 },
-              })
+              'tr', null,
+              e('th', null, 'Date'), e('th', null, 'Day'), e('th', null, 'Hours'),
+              e('th', null, 'Source'), e('th', null, 'Operation Period'), e('th', null, 'Remark')
+            )
+          ),
+          e(
+            'tbody',
+            null,
+            group.rows.map((r, i) =>
+              e(
+                'tr',
+                { key: i },
+                e('td', null, r.date),
+                e('td', null, r.day),
+                e('td', { className: 'num' }, r.hours.toFixed(2)),
+                e('td', null, r.source),
+                e('td', null, r.operation_hours || ''),
+                e(
+                  'td',
+                  null,
+                  e('input', {
+                    type: 'text',
+                    defaultValue: r.remark || '',
+                    placeholder: 'e.g. bank in',
+                    'aria-label': `Remark for ${r.date}`,
+                    onBlur: (ev) => saveRemark(r.date, ev.target.value.trim()),
+                    style: { width: '100%', marginBottom: 0 },
+                  })
+                )
+              )
             )
           )
         )
       )
-    )
-  );
+    );
+  }
+
+  return e(React.Fragment, null, groupByMonthTab(rows).map(renderGroup));
 }
 
 function UnmappedWarning({ codes, onResolved }) {
