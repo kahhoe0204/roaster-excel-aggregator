@@ -7,6 +7,9 @@ from . import csv_fetch as csv_fetch_mod
 
 _CODE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 
+# Leave shortforms — not hours worked, not an unmapped code either.
+_IGNORED_CODES = {"AL", "RL", "MC", "PH", "LEAVE"}
+
 
 def resolve_cell(cell, code_hours):
     """Resolve a cell value to hours or an unmapped code.
@@ -37,6 +40,8 @@ def resolve_cell(cell, code_hours):
     # Extract code and lookup
     code_match = _CODE_RE.match(text)
     code = code_match.group().upper() if code_match else text.upper()
+    if code in _IGNORED_CODES:
+        return None, None
     if code in code_hours:
         return code_hours[code], None
 

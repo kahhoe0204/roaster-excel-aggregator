@@ -28,8 +28,14 @@ def test_resolve_cell_code_with_suffix():
 
 
 def test_resolve_cell_unmapped_code_is_flagged_not_guessed():
-    assert aggregate.resolve_cell("AL", {}) == (None, "AL")
-    assert aggregate.resolve_cell("PH", {"SJ": 12.0}) == (None, "PH")
+    assert aggregate.resolve_cell("SJ", {}) == (None, "SJ")
+    assert aggregate.resolve_cell("XYZ", {"SJ": 12.0}) == (None, "XYZ")
+
+
+def test_resolve_cell_leave_shortforms_are_ignored():
+    for code in ("AL", "RL", "MC", "PH", "Leave"):
+        assert aggregate.resolve_cell(code, {}) == (None, None)
+        assert aggregate.resolve_cell(code, {code.upper(): 8.0}) == (None, None)
 
 
 def test_resolve_cell_digit_bearing_unmapped_code():
