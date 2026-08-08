@@ -15,6 +15,8 @@ _IGNORED_CODES = {"AL", "RL", "MC", "PH", "LEAVE"}
 # covering slot for whoever's own column is blank that day, not a named column.
 _PLACEHOLDER_HEADER_RE = re.compile(r"^\[.*\]$")
 
+_WEEKDAYS = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"}
+
 
 def resolve_cell(cell, code_hours):
     """Resolve a cell value to hours or an unmapped code.
@@ -141,6 +143,9 @@ def generate_report(conn, name, fetch_csv=None):
                     break
                 row = grid[r]
                 date_cell = row[tab["date_col"]] if tab["date_col"] < len(row) else ""
+                day_col = tab["date_col"] + 1
+                day_cell = row[day_col].strip() if day_col < len(row) else ""
+                day = day_cell if day_cell.upper() in _WEEKDAYS else ""
                 value_cell = row[name_col] if name_col < len(row) else ""
                 placeholder_text = ""
                 if has_placeholder:
@@ -161,6 +166,7 @@ def generate_report(conn, name, fetch_csv=None):
                 rows.append({
                     "name": name,
                     "date": date_cell.strip(),
+                    "day": day,
                     "hours": hours,
                     "source": f"{branch} / {tab['title']}",
                     "operation_hours": operation_hours or doc["operation_hours"],

@@ -30,8 +30,17 @@ function NameForm({ name, loading, onSubmit }) {
   );
 }
 
-function HoursTable({ rows }) {
+function HoursTable({ rows, name }) {
   if (!rows.length) return e('p', { className: 'ledger-empty' }, 'No hours on record.');
+
+  function saveRemark(date, note) {
+    fetch('/api/remarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, date, note }),
+    }).catch((err) => console.error(err));
+  }
+
   return e(
     'div',
     { className: 'table-wrap' },
@@ -41,7 +50,11 @@ function HoursTable({ rows }) {
       e(
         'thead',
         null,
-        e('tr', null, e('th', null, 'Date'), e('th', null, 'Hours'), e('th', null, 'Source'))
+        e(
+          'tr', null,
+          e('th', null, 'Date'), e('th', null, 'Day'), e('th', null, 'Hours'),
+          e('th', null, 'Source'), e('th', null, 'Remark')
+        )
       ),
       e(
         'tbody',
@@ -51,8 +64,21 @@ function HoursTable({ rows }) {
             'tr',
             { key: i },
             e('td', null, r.date),
+            e('td', null, r.day),
             e('td', { className: 'num' }, r.hours.toFixed(2)),
-            e('td', null, r.source)
+            e('td', null, r.source),
+            e(
+              'td',
+              null,
+              e('input', {
+                type: 'text',
+                defaultValue: r.remark || '',
+                placeholder: 'e.g. bank in',
+                'aria-label': `Remark for ${r.date}`,
+                onBlur: (ev) => saveRemark(r.date, ev.target.value.trim()),
+                style: { width: '100%', marginBottom: 0 },
+              })
+            )
           )
         )
       )
@@ -285,7 +311,7 @@ function App() {
     loading && e('p', { className: 'ledger-empty' }, 'Fetching hours from the sheet…'),
     !loading && name && e(AlDatesPanel, { name, alDates, onChange: setAlDates }),
     !loading && name && e(UnmappedWarning, { codes: unmapped, onResolved: () => load(name) }),
-    !loading && name && e(HoursTable, { rows }),
+    !loading && name && e(HoursTable, { rows, name }),
     !loading && e(DownloadButton, { name: rows.length ? name : '' })
   );
 }

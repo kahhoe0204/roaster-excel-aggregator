@@ -13,10 +13,16 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, sheets, sync, tab_pattern
+from . import aggregate, al, auth, config, csv_fetch, db, excel_export, mapping, remarks, sheets, sync, tab_pattern
 
 
 class AlCreate(BaseModel):
+    name: str
+    date: str
+    note: str = ""
+
+
+class RemarkCreate(BaseModel):
     name: str
     date: str
     note: str = ""
@@ -88,8 +94,16 @@ def index(request: Request, name: str = ""):
     return response
 
 
+def _merge_remarks(conn, name, rows):
+    remark_by_date = remarks.get_remarks(conn, name)
+    for row in rows:
+        row["remark"] = remark_by_date.get(row["date"], "")
+    return rows
+
+
 def _report_payload(conn, name):
     rows, unmapped = aggregate.generate_report(conn, name)
+    _merge_remarks(conn, name, rows)
     al_dates = al.list_al_dates(conn, name)
     return {"rows": rows, "unmapped": unmapped, "al_dates": al_dates}
 
@@ -140,6 +154,22 @@ def api_delete_al(request: Request, al_id: int, payload: AlAction):
         conn.close()
 
 
+@app.post("/api/remarks")
+def api_set_remark(request: Request, payload: RemarkCreate):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    name = payload.name.strip()
+    date = payload.date.strip()
+    if not name or not date:
+        raise HTTPException(status_code=400, detail="name and date are required")
+    conn = db.init_db(config.DB_PATH)
+    try:
+        remarks.set_remark(conn, name, date, payload.note.strip())
+    finally:
+        conn.close()
+    return {"ok": True}
+
+
 @app.get("/report.xlsx")
 def report_xlsx(request: Request, name: str = ""):
     if not _user(request):
@@ -150,6 +180,7 @@ def report_xlsx(request: Request, name: str = ""):
     conn = db.init_db(config.DB_PATH)
     try:
         rows, _ = aggregate.generate_report(conn, name)
+        _merge_remarks(conn, name, rows)
     finally:
         conn.close()
     data = excel_export.rows_to_xlsx(rows)

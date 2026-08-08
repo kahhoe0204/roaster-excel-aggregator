@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from app import auth, config, main
+from tests.conftest import configure_doc
 
 
 def _client(tmp_path, monkeypatch):
@@ -113,6 +114,42 @@ def test_api_delete_al_empty_name_returns_empty(tmp_path, monkeypatch):
     assert len(resp_check.json()["al_dates"]) == 1
     assert resp_check.json()["al_dates"][0]["id"] == al_id
     assert resp_check.json()["al_dates"][0]["date"] == "2026-09-01"
+
+
+def test_api_set_remark_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/api/remarks", json={"name": "Alice", "date": "1-Aug", "note": "bank in"})
+    assert resp.status_code == 401
+
+
+def test_api_set_remark_merges_into_report(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    conn.close()
+
+    grid = [["", "Alice"], ["1-Aug", "9.5"]]
+    monkeypatch.setattr(main.aggregate.csv_fetch_mod, "fetch_csv", lambda sid, gid, timeout=15: grid)
+
+    resp = client.post("/api/remarks", json={"name": "Alice", "date": "1-Aug", "note": "bank in"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+    resp2 = client.get("/api/report", params={"name": "Alice"})
+    assert resp2.json()["rows"] == [
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / August",
+         "operation_hours": None, "remark": "bank in"},
+    ]
+
+
+def test_api_set_remark_missing_date_400s(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    resp = client.post("/api/remarks", json={"name": "Alice", "date": "", "note": "x"})
+    assert resp.status_code == 400
 
 
 def test_sheets_requires_login(tmp_path, monkeypatch):

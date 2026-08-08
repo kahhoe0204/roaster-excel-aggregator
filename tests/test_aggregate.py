@@ -123,9 +123,23 @@ def test_generate_report_matches_name_across_docs(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": None},
+        {"name": "Alice", "date": "1-Aug", "day": "Friday", "hours": 9.5, "source": "Branch A / August", "operation_hours": None},
     ]
     assert unmapped == []
+
+def test_generate_report_ignores_non_weekday_adjacent_column(tmp_path):
+    # The column right after date_col is only trusted as "day" when it's
+    # actually a weekday name — a sheet without that column (or with
+    # something else there) should just get a blank day, not garbage.
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    configure_doc(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+
+    grid = [["", "Alice"], ["1-Aug", "9.5"]]
+    rows, _ = aggregate.generate_report(
+        conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
+    )
+    assert rows[0]["day"] == ""
+
 
 def test_generate_report_flags_unmapped_codes(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
@@ -182,8 +196,8 @@ def test_generate_report_uses_floating_column_code_as_source(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August", "operation_hours": None},
-        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "Branch A / August", "operation_hours": None},
     ]
     assert unmapped == []
 
@@ -209,8 +223,8 @@ def test_generate_report_uses_branch_specific_operation_hours(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "P14 / August", "operation_hours": "8:00 AM - 8:00 PM"},
-        {"name": "Tan Min", "date": "3-Aug", "hours": 12.0, "source": "SJ / August", "operation_hours": "9:00 AM - 9:00 PM"},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "P14 / August", "operation_hours": "8:00 AM - 8:00 PM"},
+        {"name": "Tan Min", "date": "3-Aug", "day": "", "hours": 12.0, "source": "SJ / August", "operation_hours": "9:00 AM - 9:00 PM"},
     ]
 
 
@@ -228,7 +242,7 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     )
 
     assert rows == [
-        {"name": "Tan Min", "date": "1-Aug", "hours": 12.0, "source": "SJ / August", "operation_hours": None},
+        {"name": "Tan Min", "date": "1-Aug", "day": "", "hours": 12.0, "source": "SJ / August", "operation_hours": None},
     ]
     assert unmapped == []
 
@@ -244,7 +258,7 @@ def test_generate_report_carries_doc_operation_hours(tmp_path):
     )
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
     ]
 
 
@@ -284,6 +298,6 @@ def test_generate_report_skips_tab_with_stale_gid(tmp_path):
     rows, unmapped = aggregate.generate_report(conn, "Alice", fetch_csv=fake_fetch_csv)
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / Live", "operation_hours": None},
+        {"name": "Alice", "date": "1-Aug", "day": "", "hours": 9.5, "source": "Branch A / Live", "operation_hours": None},
     ]
     assert unmapped == []

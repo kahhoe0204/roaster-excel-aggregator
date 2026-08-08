@@ -46,14 +46,19 @@ def rows_to_xlsx(rows):
         ws = sheets.get(month)
         if ws is None:
             ws = wb.create_sheet(title=month)
-            ws.append(["Name", "Date", "Time", "Source", "Operation Period"])
+            ws.append(["Name", "Date", "Day", "Time", "Source", "Operation Period", "Remark"])
             sheets[month] = ws
-        ws.append([row["name"].upper(), row["date"], row["hours"], row["source"], row.get("operation_hours")])
+        ws.append([
+            row["name"].upper(), row["date"], row.get("day"), row["hours"],
+            row["source"], row.get("operation_hours"), row.get("remark"),
+        ])
         for cell in ws[ws.max_row]:
             cell.fill = fill_for(_branch(row["source"]))
 
     if not sheets:
-        wb.create_sheet(title="Report").append(["Name", "Date", "Time", "Source", "Operation Period"])
+        wb.create_sheet(title="Report").append(
+            ["Name", "Date", "Day", "Time", "Source", "Operation Period", "Remark"]
+        )
 
     for ws in wb.worksheets:
         _autosize_columns(ws)

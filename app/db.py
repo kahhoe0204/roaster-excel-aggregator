@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS al_dates (
     note TEXT,
     UNIQUE(name, date)
 );
+
+CREATE TABLE IF NOT EXISTS remarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    date TEXT NOT NULL,
+    note TEXT,
+    UNIQUE(name, date)
+);
 """
 
 class _RemoteCursor:
