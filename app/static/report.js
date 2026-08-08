@@ -72,18 +72,6 @@ function HoursTable({ rows, name }) {
     }).catch((err) => console.error(err));
   }
 
-  function saveOperationPeriod(r, value) {
-    fetch('/api/operation-period', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        spreadsheet_id: r.spreadsheet_id,
-        branch_code: r.branch_code,
-        operation_hours: value,
-      }),
-    }).catch((err) => console.error(err));
-  }
-
   function renderGroup(group) {
     return e(
       'div',
@@ -114,22 +102,7 @@ function HoursTable({ rows, name }) {
                 e('td', null, r.day),
                 e('td', { className: 'num' }, r.hours.toFixed(2)),
                 e('td', null, r.source),
-                e(
-                  'td',
-                  null,
-                  e('input', {
-                    type: 'text',
-                    defaultValue: r.operation_hours || '',
-                    placeholder: 'e.g. 10:00 AM - 10:00 PM',
-                    'aria-label': `Operation period for ${r.source}`,
-                    onBlur: (ev) => {
-                      const value = ev.target.value.trim();
-                      if (value === (r.operation_hours || '')) return;
-                      saveOperationPeriod(r, value);
-                    },
-                    style: { width: '100%', marginBottom: 0 },
-                  })
-                ),
+                e('td', null, r.operation_hours || ''),
                 e(
                   'td',
                   null,
@@ -178,10 +151,13 @@ function HoursTable({ rows, name }) {
 }
 
 function UnmappedWarning({ codes, onResolved }) {
+  const [remaining, setRemaining] = React.useState(codes);
   const [hoursByKey, setHoursByKey] = React.useState({});
   const [savingKey, setSavingKey] = React.useState(null);
 
-  if (!codes.length) return null;
+  React.useEffect(() => { setRemaining(codes); }, [codes]);
+
+  if (!remaining.length) return null;
 
   const keyOf = (u) => `${u.spreadsheet_id}:${u.code}`;
 
@@ -194,7 +170,14 @@ function UnmappedWarning({ codes, onResolved }) {
       body: JSON.stringify({ spreadsheet_id: u.spreadsheet_id, code: u.code, hours }),
     })
       .then(toJson)
-      .then(() => onResolved())
+      .then(() => {
+        // Don't refetch the whole report after every single code — jarring
+        // mid-flow when there's a batch to clear. Only reload once they're
+        // all resolved, when there's nothing left to disrupt.
+        const next = remaining.filter((c) => keyOf(c) !== key);
+        setRemaining(next);
+        if (next.length === 0) onResolved();
+      })
       .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
       .finally(() => setSavingKey(null));
   }
@@ -212,8 +195,8 @@ function UnmappedWarning({ codes, onResolved }) {
   return e(
     'div',
     { className: 'alert alert-warning' },
-    e('div', null, `UNMAPPED: ${codes.map((u) => `${u.code} (${u.label})`).join(', ')}`),
-    codes.map((u) => {
+    e('div', null, `UNMAPPED: ${remaining.map((u) => `${u.code} (${u.label})`).join(', ')}`),
+    remaining.map((u) => {
       const key = keyOf(u);
       return e(
         'div',
@@ -245,6 +228,79 @@ function UnmappedWarning({ codes, onResolved }) {
             onClick: () => ignore(u),
           },
           'Ignore'
+        )
+      );
+    })
+  );
+}
+
+function branchesOf(rows) {
+  const byKey = new Map();
+  rows.forEach((r) => {
+    const key = `${r.spreadsheet_id}||${r.branch_code || ''}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        spreadsheet_id: r.spreadsheet_id,
+        branch_code: r.branch_code,
+        label: r.branch_code || r.source.split(' / ')[0],
+        operation_hours: r.operation_hours || '',
+      });
+    }
+  });
+  return [...byKey.values()];
+}
+
+function OperationPeriodPanel({ rows, onUpdate }) {
+  const branches = branchesOf(rows);
+  const [valueByKey, setValueByKey] = React.useState({});
+  const [savingKey, setSavingKey] = React.useState(null);
+
+  if (!branches.length) return null;
+
+  const keyOf = (b) => `${b.spreadsheet_id}||${b.branch_code || ''}`;
+
+  function save(b) {
+    const key = keyOf(b);
+    const value = (valueByKey[key] ?? b.operation_hours).trim();
+    setSavingKey(key);
+    fetch('/api/operation-period', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spreadsheet_id: b.spreadsheet_id,
+        branch_code: b.branch_code,
+        operation_hours: value,
+      }),
+    })
+      .then(toJson)
+      .then(() => onUpdate(b.spreadsheet_id, b.branch_code, value))
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
+      .finally(() => setSavingKey(null));
+  }
+
+  return e(
+    'div',
+    { className: 'alert alert-info' },
+    e('h2', null, 'Operation Period by Branch'),
+    branches.map((b) => {
+      const key = keyOf(b);
+      return e(
+        'div',
+        { key, style: { display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' } },
+        e('span', null, b.label),
+        e('input', {
+          type: 'text',
+          defaultValue: b.operation_hours,
+          placeholder: 'e.g. 10:00 AM - 10:00 PM',
+          'aria-label': `Operation period for ${b.label}`,
+          disabled: savingKey === key,
+          onChange: (ev) => setValueByKey({ ...valueByKey, [key]: ev.target.value }),
+          style: { flex: 1, marginBottom: 0 },
+        }),
+        e(
+          'button',
+          { type: 'button', className: 'btn', disabled: savingKey === key, onClick: () => save(b) },
+          savingKey === key ? 'Saving…' : 'Save'
         )
       );
     })
@@ -391,6 +447,14 @@ function App() {
       .finally(() => setLoading(false));
   }
 
+  function updateOperationPeriod(spreadsheetId, branchCode, value) {
+    setRows((prev) => prev.map((r) =>
+      r.spreadsheet_id === spreadsheetId && r.branch_code === branchCode
+        ? { ...r, operation_hours: value }
+        : r
+    ));
+  }
+
   React.useEffect(() => {
     if (initialName) load(initialName);
   }, []);
@@ -402,6 +466,7 @@ function App() {
     loading && e('p', { className: 'ledger-empty' }, 'Fetching hours from the sheet…'),
     !loading && name && e(AlDatesPanel, { name, alDates, onChange: setAlDates }),
     !loading && name && e(UnmappedWarning, { codes: unmapped, onResolved: () => load(name) }),
+    !loading && name && e(OperationPeriodPanel, { rows, onUpdate: updateOperationPeriod }),
     !loading && name && e(HoursTable, { rows, name }),
     !loading && e(DownloadButton, { name: rows.length ? name : '' })
   );
