@@ -61,8 +61,15 @@ def test_init_db_migrates_doc_date_config_to_known_tabs(tmp_path):
     # Regression: header_row/date_col used to live on docs and apply to
     # every tab; now they're per-tab since months can shift row offsets.
     # Existing already-known tabs should inherit the doc's old values.
+    #
+    # known_tabs/code_hours reference docs(id) by FK for real (see SCHEMA) —
+    # this fixture must too, or it can't catch the real bug this regression
+    # guards: renaming "docs" itself makes SQLite silently rewrite those FK
+    # clauses to the temp name, breaking every insert into known_tabs the
+    # moment that temp table is dropped.
     db_path = str(tmp_path / "old.db")
     raw = sqlite3.connect(db_path)
+    raw.execute("PRAGMA foreign_keys = ON")
     raw.execute("""CREATE TABLE docs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         spreadsheet_id TEXT UNIQUE NOT NULL,
@@ -76,8 +83,15 @@ def test_init_db_migrates_doc_date_config_to_known_tabs(tmp_path):
         "INSERT INTO docs (spreadsheet_id, label, header_row, date_col, date_row_start, date_row_end) "
         "VALUES ('SHEET1', 'Branch A', 5, 1, 6, 36)"
     )
-    raw.execute("CREATE TABLE known_tabs (doc_id INTEGER NOT NULL, gid TEXT NOT NULL, title TEXT, PRIMARY KEY (doc_id, gid))")
+    raw.execute(
+        "CREATE TABLE known_tabs (doc_id INTEGER NOT NULL REFERENCES docs(id), "
+        "gid TEXT NOT NULL, title TEXT, PRIMARY KEY (doc_id, gid))"
+    )
     raw.execute("INSERT INTO known_tabs (doc_id, gid, title) VALUES (1, '111', 'August')")
+    raw.execute(
+        "CREATE TABLE code_hours (doc_id INTEGER NOT NULL REFERENCES docs(id), "
+        "code TEXT NOT NULL, hours REAL NOT NULL, PRIMARY KEY (doc_id, code))"
+    )
     raw.commit()
     raw.close()
 
@@ -87,3 +101,10 @@ def test_init_db_migrates_doc_date_config_to_known_tabs(tmp_path):
     assert (tab["header_row"], tab["date_col"], tab["date_row_start"], tab["date_row_end"]) == (5, 1, 6, 36)
     doc_cols = [r["name"] for r in conn.execute("PRAGMA table_info(docs)").fetchall()]
     assert "header_row" not in doc_cols
+
+    # The real regression: inserting into known_tabs after migration used to
+    # fail with "no such table: docs_old" because renaming "docs" corrupted
+    # known_tabs' FK clause to point at the (soon dropped) temp name.
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("INSERT INTO known_tabs (doc_id, gid, title) VALUES (1, '222', 'September')")
+    conn.commit()

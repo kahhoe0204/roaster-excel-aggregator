@@ -153,14 +153,13 @@ def _migrate_date_config_to_per_tab(conn):
             (doc["header_row"], doc["date_col"], doc["date_row_start"], doc["date_row_end"], doc["id"]),
         )
 
-    conn.commit()  # foreign_keys can only be toggled outside a transaction
-    try:
-        conn.execute("PRAGMA foreign_keys = OFF")
-    except Exception:
-        pass
-    conn.execute("ALTER TABLE docs RENAME TO docs_old")
+    # Rebuild docs under a throwaway name, drop the old one, then rename the
+    # new table into place — never rename "docs" itself. Renaming a table
+    # that other tables' FKs point at makes SQLite silently rewrite those
+    # FK clauses to the new name (e.g. known_tabs ends up REFERENCES
+    # "docs_old"), which breaks forever once that name is dropped.
     conn.execute(
-        """CREATE TABLE docs (
+        """CREATE TABLE docs_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             spreadsheet_id TEXT UNIQUE NOT NULL,
             label TEXT NOT NULL,
@@ -169,10 +168,16 @@ def _migrate_date_config_to_per_tab(conn):
         )"""
     )
     conn.execute(
-        "INSERT INTO docs (id, spreadsheet_id, label, operation_hours, tab_pattern) "
-        "SELECT id, spreadsheet_id, label, operation_hours, tab_pattern FROM docs_old"
+        "INSERT INTO docs_new (id, spreadsheet_id, label, operation_hours, tab_pattern) "
+        "SELECT id, spreadsheet_id, label, operation_hours, tab_pattern FROM docs"
     )
-    conn.execute("DROP TABLE docs_old")
+    conn.commit()  # foreign_keys can only be toggled outside a transaction
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+    except Exception:
+        pass
+    conn.execute("DROP TABLE docs")
+    conn.execute("ALTER TABLE docs_new RENAME TO docs")
     try:
         conn.execute("PRAGMA foreign_keys = ON")
     except Exception:
