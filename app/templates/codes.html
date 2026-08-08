@@ -21,27 +21,33 @@
   <hr class="roast-rule container">
 
   <div class="container">
-    {% if codes %}
-      <div class="table-wrap">
-        <table class="ledger">
-          <thead><tr><th>Code</th><th>Hours</th></tr></thead>
-          <tbody>
-            {% for code, hours in codes.items() %}
-            <tr><td>{{ code }}</td><td class="num">{{ hours }}</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="ledger-empty">No codes configured yet.</p>
+    {% if not docs %}
+      <p class="ledger-empty">No docs configured yet — add one on the Docs page first.</p>
     {% endif %}
+    {% for entry in docs %}
+      <h2>{{ entry.doc.label }}</h2>
+      {% if entry.codes %}
+        <div class="table-wrap">
+          <table class="ledger">
+            <thead><tr><th>Code</th><th>Hours</th></tr></thead>
+            <tbody>
+              {% for code, hours in entry.codes.items() %}
+              <tr><td>{{ code }}</td><td class="num">{{ hours }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="ledger-empty">No codes configured yet.</p>
+      {% endif %}
 
-    <h2>Add / update a code</h2>
-    <form method="post" action="/codes" style="display:flex; gap:.5rem;">
-      <input type="text" name="code" placeholder="Code (e.g. SJ)" aria-label="Code" required style="flex:1; margin-bottom:0;">
-      <input type="number" name="hours" step="0.5" placeholder="Hours" aria-label="Hours" required style="flex:1; margin-bottom:0;">
-      <button type="submit" class="btn btn-primary">Save</button>
-    </form>
+      <form method="post" action="/codes" style="display:flex; gap:.5rem; margin-bottom:1.5rem;">
+        <input type="hidden" name="spreadsheet_id" value="{{ entry.doc.spreadsheet_id }}">
+        <input type="text" name="code" placeholder="Code (e.g. SJ)" aria-label="Code for {{ entry.doc.label }}" required style="flex:1; margin-bottom:0;">
+        <input type="number" name="hours" step="0.5" placeholder="Hours" aria-label="Hours for {{ entry.doc.label }}" required style="flex:1; margin-bottom:0;">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+    {% endfor %}
   </div>
 </body>
 </html>

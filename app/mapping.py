@@ -96,6 +96,7 @@ def delete_doc(conn, spreadsheet_id):
     if doc is None:
         return
     conn.execute("DELETE FROM known_tabs WHERE doc_id = ?", (doc["id"],))
+    conn.execute("DELETE FROM code_hours WHERE doc_id = ?", (doc["id"],))
     conn.execute("DELETE FROM docs WHERE id = ?", (doc["id"],))
     conn.commit()
 

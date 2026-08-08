@@ -185,32 +185,22 @@ def test_delete_doc_removes_it_from_list(tmp_path, monkeypatch):
     assert "SHEET1" not in resp2.text
 
 
-def test_delete_doc_drops_codes_only_it_used(tmp_path, monkeypatch):
+def test_delete_doc_drops_its_own_codes_but_not_other_docs(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})
 
     conn = main.db.init_db(config.DB_PATH)
     doc_a = main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     doc_b = main.mapping.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
-    main.mapping.mark_tab_known(conn, doc_a, "111", "August")
-    main.mapping.mark_tab_known(conn, doc_b, "222", "August")
-    main.aggregate.set_code_hours(conn, "PMT", 12.0)
-    main.aggregate.set_code_hours(conn, "SJ", 12.0)
+    main.aggregate.set_code_hours(conn, doc_a, "SJ", 12.0)
+    main.aggregate.set_code_hours(conn, doc_b, "SJ", 8.0)
     conn.close()
-
-    grids = {
-        "SHEET1": [["", "Alice"], ["1-Aug", "PMT"]],
-        "SHEET2": [["", "Bob"], ["1-Aug", "SJ"]],
-    }
-    monkeypatch.setattr(
-        main.aggregate.csv_fetch_mod, "fetch_csv",
-        lambda spreadsheet_id, gid, timeout=15: grids[spreadsheet_id],
-    )
 
     client.post("/sheets/SHEET1/delete")
 
     conn = main.db.init_db(config.DB_PATH)
-    assert main.aggregate.get_code_hours(conn) == {"SJ": 12.0}
+    assert main.aggregate.get_code_hours(conn, doc_a) == {}
+    assert main.aggregate.get_code_hours(conn, doc_b) == {"SJ": 8.0}
     conn.close()
 
 
@@ -365,12 +355,19 @@ def test_codes_page_lists_and_saves(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})
 
+    conn = main.db.init_db(config.DB_PATH)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    conn.close()
+
     resp = client.get("/codes")
     assert resp.status_code == 200
     assert "No codes configured" in resp.text
+    assert "Branch A" in resp.text
 
     resp2 = client.post(
-        "/codes", data={"code": "sj", "hours": "12.0"}, follow_redirects=False
+        "/codes",
+        data={"spreadsheet_id": "SHEET1", "code": "sj", "hours": "12.0"},
+        follow_redirects=False,
     )
     assert resp2.status_code == 303
     assert resp2.headers["location"] == "/codes"
@@ -379,3 +376,34 @@ def test_codes_page_lists_and_saves(tmp_path, monkeypatch):
     assert resp3.status_code == 200
     assert "SJ" in resp3.text
     assert "12.0" in resp3.text
+
+
+def test_api_set_code_hours_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/api/codes", json={"spreadsheet_id": "SHEET1", "code": "f", "hours": 9.0})
+    assert resp.status_code == 401
+
+
+def test_api_set_code_hours_saves(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    doc_id = main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    conn.close()
+
+    resp = client.post("/api/codes", json={"spreadsheet_id": "SHEET1", "code": "f", "hours": 9.0})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+    conn = main.db.init_db(config.DB_PATH)
+    assert main.aggregate.get_code_hours(conn, doc_id) == {"F": 9.0}
+    conn.close()
+
+
+def test_api_set_code_hours_unknown_spreadsheet_id_404s(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    resp = client.post("/api/codes", json={"spreadsheet_id": "NOPE", "code": "f", "hours": 9.0})
+    assert resp.status_code == 404

@@ -53,63 +53,6 @@ def resolve_cell(cell, code_hours):
     return None, code
 
 
-def _extract_code_token(cell):
-    text = (cell or "").strip()
-    if not text:
-        return None
-    try:
-        float(text)
-        return None  # pure number, not a code
-    except ValueError:
-        pass
-    code_match = _CODE_RE.match(text)
-    return code_match.group().upper() if code_match else text.upper()
-
-
-def codes_used_by_doc(conn, doc, fetch_csv=None):
-    """Every distinct code token appearing in doc's date rows (excluding the
-    date column itself, and the header row's staff names)."""
-    fetch = fetch_csv or csv_fetch_mod.fetch_csv
-    codes = set()
-    for tab in mapping_mod.known_tabs(conn, doc["id"]):
-        try:
-            grid = fetch(doc["spreadsheet_id"], tab["gid"])
-        except requests.exceptions.HTTPError:
-            continue
-        for r in range(doc["date_row_start"], doc["date_row_end"] + 1):
-            if r >= len(grid):
-                break
-            for c, cell in enumerate(grid[r]):
-                if c == doc["date_col"]:
-                    continue
-                code = _extract_code_token(cell)
-                if code:
-                    codes.add(code)
-    return codes
-
-
-def remove_codes_unique_to_doc(conn, spreadsheet_id, fetch_csv=None):
-    """Drop code_hours entries only ever used by this doc's sheets — call
-    before deleting the doc. Codes still used by other docs are left alone.
-    """
-    doc = mapping_mod.get_doc(conn, spreadsheet_id)
-    if doc is None:
-        return
-    this_doc_codes = codes_used_by_doc(conn, doc, fetch_csv=fetch_csv)
-    if not this_doc_codes:
-        return
-    other_codes = set()
-    for other in mapping_mod.list_docs(conn):
-        if other["id"] == doc["id"]:
-            continue
-        other_codes |= codes_used_by_doc(conn, other, fetch_csv=fetch_csv)
-    orphaned = (this_doc_codes - other_codes) & set(get_code_hours(conn))
-    for code in orphaned:
-        conn.execute("DELETE FROM code_hours WHERE code = ?", (code,))
-    if orphaned:
-        conn.commit()
-
-
 def _date_sort_key(date_str):
     # No year in "1-Aug" style cells — sort by month/day only, unparseable
     # dates keep their original relative order at the end.
@@ -119,18 +62,18 @@ def _date_sort_key(date_str):
         return (1, date_str)
 
 
-def get_code_hours(conn):
-    """Get all code->hours mappings from the database."""
-    rows = conn.execute("SELECT code, hours FROM code_hours").fetchall()
+def get_code_hours(conn, doc_id):
+    """Get this doc's code->hours mappings from the database."""
+    rows = conn.execute("SELECT code, hours FROM code_hours WHERE doc_id = ?", (doc_id,)).fetchall()
     return {r["code"]: r["hours"] for r in rows}
 
 
-def set_code_hours(conn, code, hours):
-    """Set or update a code->hours mapping."""
+def set_code_hours(conn, doc_id, code, hours):
+    """Set or update a code->hours mapping for one doc."""
     conn.execute(
-        """INSERT INTO code_hours (code, hours) VALUES (?, ?)
-           ON CONFLICT(code) DO UPDATE SET hours=excluded.hours""",
-        (code, hours),
+        """INSERT INTO code_hours (doc_id, code, hours) VALUES (?, ?, ?)
+           ON CONFLICT(doc_id, code) DO UPDATE SET hours=excluded.hours""",
+        (doc_id, code, hours),
     )
     conn.commit()
 
@@ -138,17 +81,18 @@ def set_code_hours(conn, code, hours):
 def generate_report(conn, name, fetch_csv=None):
     """Aggregate hours for `name` across all known docs/tabs via live CSV fetch.
 
-    Returns (rows, unmapped_codes) where rows are
-    {"name", "date", "hours", "source"} dicts and unmapped_codes is a
-    sorted list of distinct codes with no hours mapping.
+    Returns (rows, unmapped) where rows are {"name", "date", "hours",
+    "source"} dicts and unmapped is a sorted list of
+    {"code", "spreadsheet_id", "label"} dicts — codes with no hours mapping
+    for the specific doc they appeared in (mappings are scoped per doc).
     """
     fetch = fetch_csv or csv_fetch_mod.fetch_csv
-    code_hours = get_code_hours(conn)
     rows = []
-    unmapped = set()
+    unmapped = {}
     name_lower = name.strip().lower()
 
     for doc in mapping_mod.list_docs(conn):
+        code_hours = get_code_hours(conn, doc["id"])
         for tab in mapping_mod.known_tabs(conn, doc["id"]):
             try:
                 grid = fetch(doc["spreadsheet_id"], tab["gid"])
@@ -180,7 +124,7 @@ def generate_report(conn, name, fetch_csv=None):
                 if hours is None and unmapped_code is None and placeholder_text:
                     hours, unmapped_code = resolve_cell(placeholder_cell, code_hours)
                 if unmapped_code:
-                    unmapped.add(unmapped_code)
+                    unmapped[(unmapped_code, doc["spreadsheet_id"])] = doc["label"]
                 if hours is None:
                     continue
                 # A relief pharmacist's own column stays hers, but the
@@ -195,4 +139,11 @@ def generate_report(conn, name, fetch_csv=None):
                     "operation_hours": doc["operation_hours"],
                 })
     rows.sort(key=lambda r: _date_sort_key(r["date"]))
-    return rows, sorted(unmapped)
+    unmapped_list = sorted(
+        (
+            {"code": code, "spreadsheet_id": spreadsheet_id, "label": label}
+            for (code, spreadsheet_id), label in unmapped.items()
+        ),
+        key=lambda u: (u["code"], u["label"]),
+    )
+    return rows, unmapped_list

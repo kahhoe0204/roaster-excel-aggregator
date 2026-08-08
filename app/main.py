@@ -191,7 +191,6 @@ def delete_doc(request: Request, spreadsheet_id: str):
         raise HTTPException(status_code=401)
     conn = db.init_db(config.DB_PATH)
     try:
-        aggregate.remove_codes_unique_to_doc(conn, spreadsheet_id)
         mapping.delete_doc(conn, spreadsheet_id)
     finally:
         conn.close()
@@ -281,19 +280,50 @@ def codes_page(request: Request):
         return RedirectResponse("/login", status_code=303)
     conn = db.init_db(config.DB_PATH)
     try:
-        codes = aggregate.get_code_hours(conn)
+        docs = [
+            {"doc": doc, "codes": aggregate.get_code_hours(conn, doc["id"])}
+            for doc in mapping.list_docs(conn)
+        ]
     finally:
         conn.close()
-    return templates.TemplateResponse(request, "codes.html", {"codes": codes})
+    return templates.TemplateResponse(request, "codes.html", {"docs": docs})
 
 
 @app.post("/codes")
-def codes_submit(request: Request, code: str = Form(...), hours: float = Form(...)):
+def codes_submit(
+    request: Request,
+    spreadsheet_id: str = Form(...),
+    code: str = Form(...),
+    hours: float = Form(...),
+):
     if not _user(request):
         return RedirectResponse("/login", status_code=303)
     conn = db.init_db(config.DB_PATH)
     try:
-        aggregate.set_code_hours(conn, code.strip().upper(), hours)
+        doc = mapping.get_doc(conn, spreadsheet_id)
+        if doc is not None:
+            aggregate.set_code_hours(conn, doc["id"], code.strip().upper(), hours)
     finally:
         conn.close()
     return RedirectResponse("/codes", status_code=303)
+
+
+class CodeHoursCreate(BaseModel):
+    spreadsheet_id: str
+    code: str
+    hours: float
+
+
+@app.post("/api/codes")
+def api_set_code_hours(request: Request, payload: CodeHoursCreate):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        doc = mapping.get_doc(conn, payload.spreadsheet_id)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="Unknown spreadsheet_id")
+        aggregate.set_code_hours(conn, doc["id"], payload.code.strip().upper(), payload.hours)
+    finally:
+        conn.close()
+    return {"ok": True}

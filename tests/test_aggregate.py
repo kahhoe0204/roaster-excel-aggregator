@@ -50,72 +50,30 @@ def test_resolve_cell_digit_bearing_mapped_code():
 
 def test_code_hours_roundtrip(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
-    assert aggregate.get_code_hours(conn) == {}
-    aggregate.set_code_hours(conn, "SJ", 12.0)
-    aggregate.set_code_hours(conn, "P14", 12.0)
-    aggregate.set_code_hours(conn, "SJ", 8.0)  # overwrite
-    assert aggregate.get_code_hours(conn) == {"SJ": 8.0, "P14": 12.0}
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
+    assert aggregate.get_code_hours(conn, doc_id) == {}
+    aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
+    aggregate.set_code_hours(conn, doc_id, "P14", 12.0)
+    aggregate.set_code_hours(conn, doc_id, "SJ", 8.0)  # overwrite
+    assert aggregate.get_code_hours(conn, doc_id) == {"SJ": 8.0, "P14": 12.0}
 
 
-def test_codes_used_by_doc_collects_every_code_token(tmp_path):
-    conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 2)
-    mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
-    doc = mapping_mod.get_doc(conn, "SHEET1")
-
-    grid = [["", "Alice"], ["1-Aug", "SJ"], ["2-Aug", "12"]]
-    codes = aggregate.codes_used_by_doc(conn, doc, fetch_csv=lambda sid, gid, timeout=15: grid)
-
-    assert codes == {"SJ"}
-
-
-def test_remove_codes_unique_to_doc_keeps_codes_used_elsewhere(tmp_path):
+def test_code_hours_scoped_per_doc(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_a, "111", "August")
-    mapping_mod.mark_tab_known(conn, doc_b, "222", "August")
-    aggregate.set_code_hours(conn, "SJ", 12.0)
-    aggregate.set_code_hours(conn, "PMT", 12.0)
+    aggregate.set_code_hours(conn, doc_a, "SJ", 12.0)
+    aggregate.set_code_hours(conn, doc_b, "SJ", 8.0)
 
-    grids = {
-        "SHEET1": [["", "Alice"], ["1-Aug", "SJ"]],
-        "SHEET2": [["", "Bob"], ["1-Aug", "SJ"], ["2-Aug", "PMT"]],
-    }
-    aggregate.remove_codes_unique_to_doc(
-        conn, "SHEET1", fetch_csv=lambda sid, gid, timeout=15: grids[sid]
-    )
-
-    remaining = aggregate.get_code_hours(conn)
-    assert remaining == {"SJ": 12.0, "PMT": 12.0}  # both still used by SHEET2
-
-
-def test_remove_codes_unique_to_doc_drops_codes_used_nowhere_else(tmp_path):
-    conn = db_mod.init_db(str(tmp_path / "t.db"))
-    doc_a = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
-    doc_b = mapping_mod.save_mapping(conn, "SHEET2", "Branch B", 0, 0, 1, 1)
-    mapping_mod.mark_tab_known(conn, doc_a, "111", "August")
-    mapping_mod.mark_tab_known(conn, doc_b, "222", "August")
-    aggregate.set_code_hours(conn, "PMT", 12.0)
-    aggregate.set_code_hours(conn, "SJ", 12.0)
-
-    grids = {
-        "SHEET1": [["", "Alice"], ["1-Aug", "PMT"]],
-        "SHEET2": [["", "Bob"], ["1-Aug", "SJ"]],
-    }
-    aggregate.remove_codes_unique_to_doc(
-        conn, "SHEET1", fetch_csv=lambda sid, gid, timeout=15: grids[sid]
-    )
-
-    remaining = aggregate.get_code_hours(conn)
-    assert remaining == {"SJ": 12.0}  # PMT was only used by SHEET1, dropped
+    assert aggregate.get_code_hours(conn, doc_a) == {"SJ": 12.0}
+    assert aggregate.get_code_hours(conn, doc_b) == {"SJ": 8.0}
 
 
 def test_generate_report_matches_name_across_docs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
-    aggregate.set_code_hours(conn, "SJ", 12.0)
+    aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
 
     grid = [
         ["", "", "Alice", "Bob"],
@@ -144,7 +102,7 @@ def test_generate_report_flags_unmapped_codes(tmp_path):
         conn, "Alice", fetch_csv=lambda sid, gid, timeout=15: grid
     )
     assert rows == []
-    assert unmapped == ["XYZ"]
+    assert unmapped == [{"code": "XYZ", "spreadsheet_id": "SHEET1", "label": "Branch A"}]
 
 def test_generate_report_skips_docs_without_matching_name(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
@@ -189,7 +147,7 @@ def test_generate_report_credits_floating_column_when_own_cell_blank(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
-    aggregate.set_code_hours(conn, "SJ", 12.0)
+    aggregate.set_code_hours(conn, doc_id, "SJ", 12.0)
 
     grid = [
         ["", "TAN MIN (PRP)", "[Pharmacist Name]"],

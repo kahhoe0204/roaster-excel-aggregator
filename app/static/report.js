@@ -60,9 +60,59 @@ function HoursTable({ rows }) {
   );
 }
 
-function UnmappedWarning({ codes }) {
+function UnmappedWarning({ codes, onResolved }) {
+  const [hoursByKey, setHoursByKey] = React.useState({});
+  const [savingKey, setSavingKey] = React.useState(null);
+
   if (!codes.length) return null;
-  return e('div', { className: 'alert alert-warning' }, `UNMAPPED: ${codes.join(', ')}`);
+
+  const keyOf = (u) => `${u.spreadsheet_id}:${u.code}`;
+
+  function save(u) {
+    const key = keyOf(u);
+    const hours = parseFloat(hoursByKey[key]);
+    if (!hours || hours <= 0) { alert(`Enter hours for ${u.code}`); return; }
+    setSavingKey(key);
+    fetch('/api/codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spreadsheet_id: u.spreadsheet_id, code: u.code, hours }),
+    })
+      .then(toJson)
+      .then(() => onResolved())
+      .catch((err) => { console.error(err); alert('Something went wrong — please try again.'); })
+      .finally(() => setSavingKey(null));
+  }
+
+  return e(
+    'div',
+    { className: 'alert alert-warning' },
+    e('div', null, `UNMAPPED: ${codes.map((u) => `${u.code} (${u.label})`).join(', ')}`),
+    codes.map((u) => {
+      const key = keyOf(u);
+      return e(
+        'div',
+        { key, style: { display: 'flex', gap: '.5rem', alignItems: 'center', marginTop: '.5rem' } },
+        e('span', null, `${u.code} on ${u.label} is how many hours?`),
+        e('input', {
+          type: 'number',
+          step: '0.5',
+          min: '0',
+          placeholder: 'hours',
+          'aria-label': `Hours for ${u.code} on ${u.label}`,
+          value: hoursByKey[key] || '',
+          disabled: savingKey === key,
+          onChange: (ev) => setHoursByKey({ ...hoursByKey, [key]: ev.target.value }),
+          style: { width: '6rem', marginBottom: 0 },
+        }),
+        e(
+          'button',
+          { type: 'button', className: 'btn', disabled: savingKey === key, onClick: () => save(u) },
+          savingKey === key ? 'Saving…' : 'Save'
+        )
+      );
+    })
+  );
 }
 
 function AlDatesPanel({ name, alDates, onChange }) {
@@ -215,7 +265,7 @@ function App() {
     e(NameForm, { name, loading, onSubmit: load }),
     loading && e('p', { className: 'ledger-empty' }, 'Fetching hours from the sheet…'),
     !loading && name && e(AlDatesPanel, { name, alDates, onChange: setAlDates }),
-    !loading && name && e(UnmappedWarning, { codes: unmapped }),
+    !loading && name && e(UnmappedWarning, { codes: unmapped, onResolved: () => load(name) }),
     !loading && name && e(HoursTable, { rows }),
     !loading && e(DownloadButton, { name: rows.length ? name : '' })
   );

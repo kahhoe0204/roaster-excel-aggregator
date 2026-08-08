@@ -22,8 +22,10 @@ CREATE TABLE IF NOT EXISTS known_tabs (
 );
 
 CREATE TABLE IF NOT EXISTS code_hours (
-    code TEXT PRIMARY KEY,
-    hours REAL NOT NULL
+    doc_id INTEGER NOT NULL REFERENCES docs(id),
+    code TEXT NOT NULL,
+    hours REAL NOT NULL,
+    PRIMARY KEY (doc_id, code)
 );
 
 CREATE TABLE IF NOT EXISTS al_dates (
@@ -91,6 +93,34 @@ def get_connection(db_path):
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+def _migrate_code_hours_to_per_doc(conn):
+    """code_hours used to be one global code->hours table; it's now scoped
+    per doc_id. Existing global entries are copied to every current doc as
+    a starting point, rather than silently discarded."""
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(code_hours)").fetchall()]
+    if "doc_id" in cols:
+        return
+    old_rows = [(r["code"], r["hours"]) for r in conn.execute("SELECT code, hours FROM code_hours").fetchall()]
+    doc_ids = [r["id"] for r in conn.execute("SELECT id FROM docs").fetchall()]
+    conn.execute("ALTER TABLE code_hours RENAME TO code_hours_old")
+    conn.execute(
+        """CREATE TABLE code_hours (
+            doc_id INTEGER NOT NULL REFERENCES docs(id),
+            code TEXT NOT NULL,
+            hours REAL NOT NULL,
+            PRIMARY KEY (doc_id, code)
+        )"""
+    )
+    for code, hours in old_rows:
+        for doc_id in doc_ids:
+            conn.execute(
+                "INSERT INTO code_hours (doc_id, code, hours) VALUES (?, ?, ?)",
+                (doc_id, code, hours),
+            )
+    conn.execute("DROP TABLE code_hours_old")
+    conn.commit()
+
+
 def init_db(db_path):
     conn = get_connection(db_path)
     conn.executescript(SCHEMA)
@@ -104,4 +134,5 @@ def init_db(db_path):
             conn.commit()
         except Exception:
             pass  # column already exists on every init_db call after the first
+    _migrate_code_hours_to_per_doc(conn)
     return conn
