@@ -3,7 +3,7 @@ import re
 _MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 _DAY_RE = re.compile(r"^(\d{1,2})-([A-Za-z]{3,9})$")
 
-def _day_month(cell):
+def parse_day_month(cell):
     """Parse "20-Jul" into (day, month_index), or None if it doesn't match
     a real day-of-month / real month abbreviation."""
     m = _DAY_RE.match(cell.strip())
@@ -38,13 +38,13 @@ def detect_date_range(grid, header_row, search_rows=10):
     for col in range(num_cols):
         for start in range(header_row + 1, search_end):
             cell = grid[start][col] if col < len(grid[start]) else ""
-            prev = _day_month(cell)
+            prev = parse_day_month(cell)
             if prev is None:
                 continue
             row = start + 1
             while row < len(grid):
                 cell = grid[row][col] if col < len(grid[row]) else ""
-                curr = _day_month(cell)
+                curr = parse_day_month(cell)
                 if curr is None or not _is_next_day(prev, curr):
                     break
                 prev = curr

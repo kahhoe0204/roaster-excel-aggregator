@@ -30,3 +30,12 @@ def test_infer_pattern_roundtrips_with_matches():
     assert tab_pattern.matches(inferred, "JUN 26 PH")
     assert tab_pattern.matches(inferred, "AUG 26 PH")
     assert not tab_pattern.matches(inferred, "AUG 26 OTHER")
+
+
+def test_tab_month_finds_the_embedded_month():
+    assert tab_pattern.tab_month("AUG 26 PH") == 7
+    assert tab_pattern.tab_month("jul 26 ph") == 6
+
+
+def test_tab_month_none_without_a_recognizable_month():
+    assert tab_pattern.tab_month("STATE PH") is None

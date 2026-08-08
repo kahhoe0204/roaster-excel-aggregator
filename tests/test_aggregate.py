@@ -177,6 +177,36 @@ def test_generate_report_skips_docs_without_matching_name(tmp_path):
     assert unmapped == []
 
 
+def test_generate_report_filters_leftover_days_from_adjacent_month(tmp_path):
+    # Regression: a month's tab often carries a few leftover days from the
+    # tab before/after (e.g. "AUG 26 PH" also lists late July) — those must
+    # not be double-counted against the tab that actually owns that month.
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A")
+    mapping_mod.mark_tab_known(conn, doc_id, "1", "JUL 26 PH")
+    mapping_mod.mark_tab_known(conn, doc_id, "2", "AUG 26 PH")
+    mapping_mod.configure_tab(conn, doc_id, "1", header_row=0, date_col=0, row_start=1, row_end=4)
+    mapping_mod.configure_tab(conn, doc_id, "2", header_row=0, date_col=0, row_start=1, row_end=8)
+
+    jul_grid = [
+        ["", "Javerin"],
+        ["28-Jul", "12"], ["29-Jul", "12"], ["30-Jul", "12"], ["31-Jul", "12"],
+    ]
+    aug_grid = [
+        ["", "Javerin"],
+        ["28-Jul", "12"], ["29-Jul", "12"], ["30-Jul", "12"], ["31-Jul", "12"],  # leftover, not August's
+        ["1-Aug", "12"], ["2-Aug", "12"], ["3-Aug", "12"], ["4-Aug", "12"],
+    ]
+    grids = {"1": jul_grid, "2": aug_grid}
+    rows, _ = aggregate.generate_report(
+        conn, "Javerin", fetch_csv=lambda sid, gid, timeout=15: grids[gid]
+    )
+
+    dates = [r["date"] for r in rows]
+    assert dates == ["28-Jul", "29-Jul", "30-Jul", "31-Jul", "1-Aug", "2-Aug", "3-Aug", "4-Aug"]
+    assert len(dates) == len(set(dates))  # no duplicates
+
+
 def test_generate_report_uses_floating_column_code_as_source(tmp_path):
     # Regression: a relief pharmacist's own column holds her hours (a bare
     # number), but which branch she actually covered that day is recorded

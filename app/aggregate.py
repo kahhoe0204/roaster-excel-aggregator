@@ -5,6 +5,7 @@ import requests
 
 from . import mapping as mapping_mod
 from . import csv_fetch as csv_fetch_mod
+from . import tab_pattern as tab_pattern_mod
 
 _CODE_RE = re.compile(r"[A-Za-z][A-Za-z0-9]*")
 
@@ -138,11 +139,21 @@ def generate_report(conn, name, fetch_csv=None):
                 placeholder_col < len(header)
                 and _PLACEHOLDER_HEADER_RE.match(header[placeholder_col].strip())
             )
+            tab_month = tab_pattern_mod.tab_month(tab["title"])
             for r in range(tab["date_row_start"], tab["date_row_end"] + 1):
                 if r >= len(grid):
                     break
                 row = grid[r]
                 date_cell = row[tab["date_col"]] if tab["date_col"] < len(row) else ""
+                # Sheets often carry a few leftover days from the adjacent
+                # month for scheduling convenience (e.g. the "AUG" tab also
+                # shows late July and early September) — only trust rows
+                # that actually belong to this tab's own month, so the same
+                # calendar date isn't double-counted from two tabs.
+                if tab_month is not None:
+                    parsed = mapping_mod.parse_day_month(date_cell)
+                    if parsed is not None and parsed[1] != tab_month:
+                        continue
                 day_col = tab["date_col"] + 1
                 day_cell = row[day_col].strip() if day_col < len(row) else ""
                 day = day_cell if day_cell.upper() in _WEEKDAYS else ""

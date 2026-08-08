@@ -35,6 +35,16 @@ _MONTH_TOKEN_RE = re.compile(r"(?i)\b(" + "|".join(_MONTH_ABBR) + r")\b")
 _YEAR_TOKEN_RE = re.compile(r"\b\d{2}\b")
 
 
+def tab_month(title):
+    """The month abbreviation embedded in a tab title (e.g. "AUG 26 PH" -> 7
+    for August), or None if the title has no recognizable month — some
+    sheets' month tabs include a few leftover days from the tab before/after
+    for scheduling convenience; this is how a row gets checked against the
+    tab's own month instead of double-counting those leftover days."""
+    m = _MONTH_TOKEN_RE.search(title)
+    return _MONTH_ABBR.index(m.group(1).upper()) if m else None
+
+
 def infer_pattern(title):
     """Reverse of compile_pattern: guess a reusable {month}/{shortyear}
     template from one concrete tab title, e.g. "MAY 26 PH" -> "{month}
