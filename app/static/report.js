@@ -59,17 +59,21 @@ function groupByMonthTab(rows) {
 function HoursTable({ rows, name }) {
   const groups = groupByMonthTab(rows);
   const [activeTab, setActiveTab] = React.useState(groups[0] ? groups[0].tab : null);
+  const [savingRemark, setSavingRemark] = React.useState(null);
 
   if (!rows.length) return e('p', { className: 'ledger-empty' }, 'No hours on record.');
 
   const active = groups.find((g) => g.tab === activeTab) || groups[0];
 
   function saveRemark(date, note) {
+    setSavingRemark(date);
     fetch('/api/remarks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, date, note }),
-    }).catch((err) => console.error(err));
+    })
+      .catch((err) => console.error(err))
+      .finally(() => setSavingRemark(null));
   }
 
   function renderGroup(group) {
@@ -109,8 +113,9 @@ function HoursTable({ rows, name }) {
                   e('input', {
                     type: 'text',
                     defaultValue: r.remark || '',
-                    placeholder: 'e.g. bank in',
+                    placeholder: savingRemark === r.date ? 'Saving…' : 'e.g. bank in',
                     'aria-label': `Remark for ${r.date}`,
+                    disabled: savingRemark === r.date,
                     onBlur: (ev) => {
                       const value = ev.target.value.trim();
                       if (value === (r.remark || '')) return;
@@ -407,14 +412,34 @@ function AlDatesPanel({ name, alDates, onChange }) {
 }
 
 function DownloadButton({ name }) {
+  const [downloading, setDownloading] = React.useState(false);
+
   if (!name) return null;
+
+  function download() {
+    setDownloading(true);
+    fetch(`/report.xlsx?name=${encodeURIComponent(name)}`)
+      .then((r) => {
+        if (r.redirected && r.url.includes('/login')) { location.href = r.url; throw new Error('redirected'); }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch((err) => { console.error(err); })
+      .finally(() => setDownloading(false));
+  }
+
   return e(
-    'a',
-    {
-      href: `/report.xlsx?name=${encodeURIComponent(name)}`,
-      className: 'btn btn-primary',
-    },
-    'Download .xlsx'
+    'button',
+    { type: 'button', className: 'btn btn-primary', disabled: downloading, onClick: download },
+    downloading ? 'Generating…' : 'Download .xlsx'
   );
 }
 
