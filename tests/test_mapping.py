@@ -29,6 +29,63 @@ def test_detect_date_range_stops_at_broken_sequence():
     result = mapping.detect_date_range(grid, header_row=0)
     assert result == {"date_col": 0, "row_start": 1, "row_end": 2}
 
+def test_detect_date_range_skips_rows_before_the_dates_start():
+    # Regression: some sheets have a blank/instructions row (or several)
+    # between the staff-name header and where the actual dates begin.
+    grid = [
+        ["", "Alice"],
+        ["INSTRUCTIONS", ""],
+        ["", ""],
+        ["1-Aug", "9"],
+        ["2-Aug", "8"],
+    ]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result == {"date_col": 0, "row_start": 3, "row_end": 4}
+
+def test_detect_date_range_accepts_mid_month_start():
+    # Regression: a payroll period starting on the 20th (not the 1st) was
+    # never detected because the old code required the run to start at day 1.
+    grid = [
+        ["", "Alice"],
+        ["20-Jul", "9"],
+        ["21-Jul", "8"],
+        ["22-Jul", "7"],
+    ]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result == {"date_col": 0, "row_start": 1, "row_end": 3}
+
+def test_detect_date_range_accepts_month_end_wraparound():
+    grid = [
+        ["", "Alice"],
+        ["30-Jul", "9"],
+        ["31-Jul", "8"],
+        ["1-Aug", "7"],
+    ]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result == {"date_col": 0, "row_start": 1, "row_end": 3}
+
+def test_detect_date_range_rejects_same_month_day_reset():
+    # "31-Jul" then "1-Jul" (same month, day resets) is not a real rollover —
+    # unlike "31-Jul" then "1-Aug". Must not be treated as a continuing run.
+    grid = [
+        ["", "Alice"],
+        ["31-Jul", "9"],
+        ["1-Jul", "8"],
+        ["2-Jul", "7"],
+    ]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result == {"date_col": 0, "row_start": 2, "row_end": 3}
+
+def test_detect_date_range_rejects_bogus_month_name():
+    grid = [["", "Alice"], ["1-Xyz", "9"], ["2-Xyz", "8"]]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result is None
+
+def test_detect_date_range_gives_up_beyond_search_window():
+    grid = [["", "Alice"]] + [["", ""]] * 10 + [["1-Aug", "9"], ["2-Aug", "8"]]
+    result = mapping.detect_date_range(grid, header_row=0)
+    assert result is None
+
 def test_save_and_get_mapping(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)

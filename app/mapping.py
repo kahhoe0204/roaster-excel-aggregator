@@ -1,31 +1,57 @@
 import re
 
-_DAY_RE = re.compile(r"^(\d{1,2})-[A-Za-z]{3,9}$")
+_MONTH_ABBR = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+_DAY_RE = re.compile(r"^(\d{1,2})-([A-Za-z]{3,9})$")
 
-def _day_matches(cell, expected_day):
+def _day_month(cell):
+    """Parse "20-Jul" into (day, month_index), or None if it doesn't match
+    a real day-of-month / real month abbreviation."""
     m = _DAY_RE.match(cell.strip())
-    return bool(m) and int(m.group(1)) == expected_day
+    if not m:
+        return None
+    day = int(m.group(1))
+    month_abbr = m.group(2)[:3].upper()
+    if month_abbr not in _MONTH_ABBR or not 1 <= day <= 31:
+        return None
+    return day, _MONTH_ABBR.index(month_abbr)
 
-def detect_date_range(grid, header_row):
+def _is_next_day(prev, curr):
+    prev_day, prev_month = prev
+    day, month = curr
+    if month == prev_month:
+        return day == prev_day + 1
+    return day == 1 and month == (prev_month + 1) % 12
+
+def detect_date_range(grid, header_row, search_rows=10):
+    """Find the date column/range below header_row.
+
+    The date sequence doesn't always start right below the header (some
+    sheets have a blank/instructions row first), and doesn't always start
+    on the 1st of the month (payroll periods can start mid-month) — so try
+    every possible start within `search_rows` rows below the header, and
+    follow the actual month names so a run only continues into the next
+    calendar month, never wraps on a coincidental day-of-month match.
+    """
     num_cols = max((len(r) for r in grid), default=0)
+    search_end = min(len(grid), header_row + 1 + search_rows)
     best = None
     for col in range(num_cols):
-        run_start = None
-        expected = 1
-        row = header_row + 1
-        while row < len(grid):
-            cell = grid[row][col] if col < len(grid[row]) else ""
-            if _day_matches(cell, expected):
-                if run_start is None:
-                    run_start = row
-                expected += 1
+        for start in range(header_row + 1, search_end):
+            cell = grid[start][col] if col < len(grid[start]) else ""
+            prev = _day_month(cell)
+            if prev is None:
+                continue
+            row = start + 1
+            while row < len(grid):
+                cell = grid[row][col] if col < len(grid[row]) else ""
+                curr = _day_month(cell)
+                if curr is None or not _is_next_day(prev, curr):
+                    break
+                prev = curr
                 row += 1
-            else:
-                break
-        run_len = expected - 1
-        if run_start is not None and run_len >= 2:
-            if best is None or run_len > best[3]:
-                best = (col, run_start, row - 1, run_len)
+            run_len = row - start
+            if run_len >= 2 and (best is None or run_len > best[3]):
+                best = (col, start, row - 1, run_len)
     if best is None:
         return None
     col, start, end, _ = best
