@@ -31,15 +31,15 @@ def matches(template, title):
     return bool(compile_pattern(template).match(title.strip()))
 
 
-def pick_latest(template, tabs):
-    """Return the tab dict (must have a "title") that parses to the latest
-    month/year among those matching `template`, or None if none match."""
-    regex = compile_pattern(template)
-    ranked = []
-    for tab in tabs:
-        m = regex.match(tab["title"].strip())
-        if m:
-            ranked.append((_sort_key(m), tab))
-    if not ranked:
-        return None
-    return max(ranked, key=lambda pair: pair[0])[1]
+_MONTH_TOKEN_RE = re.compile(r"(?i)\b(" + "|".join(_MONTH_ABBR) + r")\b")
+_YEAR_TOKEN_RE = re.compile(r"\b\d{2}\b")
+
+
+def infer_pattern(title):
+    """Reverse of compile_pattern: guess a reusable {month}/{shortyear}
+    template from one concrete tab title, e.g. "MAY 26 PH" -> "{month}
+    {shortyear} PH". Falls back to the literal title if it has no month
+    abbreviation or 2-digit year token to generalize from."""
+    pattern = _MONTH_TOKEN_RE.sub("{month}", title, count=1)
+    pattern = _YEAR_TOKEN_RE.sub("{shortyear}", pattern, count=1)
+    return pattern

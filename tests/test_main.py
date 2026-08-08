@@ -139,10 +139,10 @@ def test_api_sheets_tabs_returns_tabs(tmp_path, monkeypatch):
 
     resp = client.post("/api/sheets/tabs", json={"spreadsheet_id": "SHEET1"})
     assert resp.status_code == 200
-    assert resp.json() == {"tabs": [{"gid": "111", "title": "August"}], "latest": None}
+    assert resp.json() == {"tabs": [{"gid": "111", "title": "August", "pattern": "August"}]}
 
 
-def test_api_sheets_tabs_picks_latest_matching_tab(tmp_path, monkeypatch):
+def test_api_sheets_tabs_infers_pattern_per_tab(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})
 
@@ -155,12 +155,13 @@ def test_api_sheets_tabs_picks_latest_matching_tab(tmp_path, monkeypatch):
         ],
     )
 
-    resp = client.post(
-        "/api/sheets/tabs",
-        json={"spreadsheet_id": "SHEET1", "tab_pattern": "{month} {shortyear} PH"},
-    )
+    resp = client.post("/api/sheets/tabs", json={"spreadsheet_id": "SHEET1"})
     assert resp.status_code == 200
-    assert resp.json()["latest"] == {"gid": "2", "title": "AUG 26 PH"}
+    assert resp.json()["tabs"] == [
+        {"gid": "1", "title": "JUL 26 PH", "pattern": "{month} {shortyear} PH"},
+        {"gid": "2", "title": "AUG 26 PH", "pattern": "{month} {shortyear} PH"},
+        {"gid": "3", "title": "AUG 26 OTHER", "pattern": "{month} {shortyear} OTHER"},
+    ]
 
 
 def test_delete_doc_requires_login(tmp_path, monkeypatch):

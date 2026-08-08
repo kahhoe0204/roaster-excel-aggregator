@@ -28,7 +28,6 @@ class AlAction(BaseModel):
 
 class SheetTabsRequest(BaseModel):
     spreadsheet_id: str
-    tab_pattern: str = ""
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -202,8 +201,9 @@ def api_sheets_tabs(request: Request, payload: SheetTabsRequest):
     if not _user(request):
         raise HTTPException(status_code=401)
     tabs = sheets.list_tabs(payload.spreadsheet_id.strip(), config.GOOGLE_API_KEY)
-    latest = tab_pattern.pick_latest(payload.tab_pattern.strip(), tabs) if payload.tab_pattern.strip() else None
-    return {"tabs": tabs, "latest": latest}
+    for t in tabs:
+        t["pattern"] = tab_pattern.infer_pattern(t["title"])
+    return {"tabs": tabs}
 
 
 @app.get("/sheets/{spreadsheet_id}/configure", response_class=HTMLResponse)
