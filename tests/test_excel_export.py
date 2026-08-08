@@ -16,8 +16,8 @@ def test_rows_to_xlsx_roundtrip():
     values = [[cell.value for cell in row] for row in ws.iter_rows()]
 
     assert values[0] == ["Name", "Date", "Time", "Source", "Operation Period"]
-    assert values[1] == ["Alice", "1-Aug", 9.5, "Branch A / August", "10:00 AM - 10:00 PM"]
-    assert values[2] == ["Alice", "3-Aug", 12.0, "Branch A / August", "10:00 AM - 10:00 PM"]
+    assert values[1] == ["ALICE", "1-Aug", 9.5, "Branch A / August", "10:00 AM - 10:00 PM"]
+    assert values[2] == ["ALICE", "3-Aug", 12.0, "Branch A / August", "10:00 AM - 10:00 PM"]
 
 
 def test_rows_to_xlsx_empty_rows_still_has_header():
@@ -37,8 +37,19 @@ def test_rows_to_xlsx_splits_months_into_separate_tabs():
     wb = load_workbook(BytesIO(data))
 
     assert wb.sheetnames == ["July", "August"]
-    assert [c.value for c in wb["July"][2]] == ["Alice", "20-Jul", 9.0, "Branch A / July", None]
-    assert [c.value for c in wb["August"][2]] == ["Alice", "1-Aug", 9.5, "Branch A / August", None]
+    assert [c.value for c in wb["July"][2]] == ["ALICE", "20-Jul", 9.0, "Branch A / July", None]
+    assert [c.value for c in wb["August"][2]] == ["ALICE", "1-Aug", 9.5, "Branch A / August", None]
+
+
+def test_rows_to_xlsx_autosizes_columns_to_max_value_length():
+    rows = [
+        {"name": "Alice", "date": "1-Aug", "hours": 9.0, "source": "A Very Long Branch Name / August", "operation_hours": None},
+    ]
+    data = excel_export.rows_to_xlsx(rows)
+    wb = load_workbook(BytesIO(data))
+    ws = wb["August"]
+
+    assert ws.column_dimensions["D"].width == max(len("Source"), len("A Very Long Branch Name / August")) + 2
 
 
 def test_rows_to_xlsx_colors_rows_by_branch():
