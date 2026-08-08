@@ -229,13 +229,15 @@ def test_set_operation_hours_saves_and_redirects(tmp_path, monkeypatch):
     conn.close()
 
     resp = client.post(
-        "/sheets/SHEET1/operation-hours", data={"hours": "12"}, follow_redirects=False
+        "/sheets/SHEET1/operation-hours",
+        data={"hours": "10:00 AM - 10:00 PM"},
+        follow_redirects=False,
     )
     assert resp.status_code == 303
     assert resp.headers["location"] == "/sheets"
 
     conn = main.db.init_db(config.DB_PATH)
-    assert main.mapping.get_doc(conn, "SHEET1")["operation_hours"] == 12.0
+    assert main.mapping.get_doc(conn, "SHEET1")["operation_hours"] == "10:00 AM - 10:00 PM"
     conn.close()
 
 

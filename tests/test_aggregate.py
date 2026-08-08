@@ -209,7 +209,7 @@ def test_generate_report_carries_doc_operation_hours(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping_mod.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 1)
     mapping_mod.mark_tab_known(conn, doc_id, "111", "August")
-    mapping_mod.set_operation_hours(conn, "SHEET1", 12.0)
+    mapping_mod.set_operation_hours(conn, "SHEET1", "10:00 AM - 10:00 PM")
 
     grid = [["", "Alice"], ["1-Aug", "9.5"]]
     rows, _ = aggregate.generate_report(
@@ -217,7 +217,7 @@ def test_generate_report_carries_doc_operation_hours(tmp_path):
     )
 
     assert rows == [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": 12.0},
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
     ]
 
 

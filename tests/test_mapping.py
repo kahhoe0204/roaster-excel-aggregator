@@ -66,9 +66,9 @@ def test_set_operation_hours(tmp_path):
     mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
     assert mapping.get_doc(conn, "SHEET1")["operation_hours"] is None
 
-    mapping.set_operation_hours(conn, "SHEET1", 12.0)
+    mapping.set_operation_hours(conn, "SHEET1", "10:00 AM - 10:00 PM")
 
-    assert mapping.get_doc(conn, "SHEET1")["operation_hours"] == 12.0
+    assert mapping.get_doc(conn, "SHEET1")["operation_hours"] == "10:00 AM - 10:00 PM"
 
 
 def test_mark_and_list_known_tabs(tmp_path):

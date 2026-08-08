@@ -174,7 +174,7 @@ def sheets_page(request: Request):
 
 
 @app.post("/sheets/{spreadsheet_id}/operation-hours")
-def set_operation_hours(request: Request, spreadsheet_id: str, hours: float = Form(...)):
+def set_operation_hours(request: Request, spreadsheet_id: str, hours: str = Form(...)):
     if not _user(request):
         raise HTTPException(status_code=401)
     conn = db.init_db(config.DB_PATH)

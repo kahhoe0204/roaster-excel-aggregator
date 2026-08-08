@@ -5,8 +5,8 @@ from app import excel_export
 
 def test_rows_to_xlsx_roundtrip():
     rows = [
-        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": 12.0},
-        {"name": "Alice", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August", "operation_hours": 12.0},
+        {"name": "Alice", "date": "1-Aug", "hours": 9.5, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
+        {"name": "Alice", "date": "3-Aug", "hours": 12.0, "source": "Branch A / August", "operation_hours": "10:00 AM - 10:00 PM"},
     ]
     data = excel_export.rows_to_xlsx(rows)
 
@@ -15,9 +15,9 @@ def test_rows_to_xlsx_roundtrip():
     ws = wb.active
     values = [[cell.value for cell in row] for row in ws.iter_rows()]
 
-    assert values[0] == ["Name", "Date", "Time", "Source", "Operation Hours"]
-    assert values[1] == ["Alice", "1-Aug", 9.5, "Branch A / August", 12.0]
-    assert values[2] == ["Alice", "3-Aug", 12.0, "Branch A / August", 12.0]
+    assert values[0] == ["Name", "Date", "Time", "Source", "Operation Period"]
+    assert values[1] == ["Alice", "1-Aug", 9.5, "Branch A / August", "10:00 AM - 10:00 PM"]
+    assert values[2] == ["Alice", "3-Aug", 12.0, "Branch A / August", "10:00 AM - 10:00 PM"]
 
 
 def test_rows_to_xlsx_empty_rows_still_has_header():
@@ -25,7 +25,7 @@ def test_rows_to_xlsx_empty_rows_still_has_header():
     wb = load_workbook(BytesIO(data))
     ws = wb.active
     values = [[cell.value for cell in row] for row in ws.iter_rows()]
-    assert values == [["Name", "Date", "Time", "Source", "Operation Hours"]]
+    assert values == [["Name", "Date", "Time", "Source", "Operation Period"]]
 
 
 def test_rows_to_xlsx_splits_months_into_separate_tabs():
