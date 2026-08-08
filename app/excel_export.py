@@ -27,7 +27,7 @@ def _autosize_columns(ws):
         for cell in row:
             widths[cell.column_letter] = max(widths.get(cell.column_letter, 0), len(str(cell.value or "")))
     for letter, width in widths.items():
-        ws.column_dimensions[letter].width = width + 2
+        ws.column_dimensions[letter].width = width + 10
 
 
 def rows_to_xlsx(rows):
