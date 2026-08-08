@@ -56,6 +56,15 @@ def get_doc(conn, spreadsheet_id):
     return dict(row) if row else None
 
 
+def delete_doc(conn, spreadsheet_id):
+    doc = get_doc(conn, spreadsheet_id)
+    if doc is None:
+        return
+    conn.execute("DELETE FROM known_tabs WHERE doc_id = ?", (doc["id"],))
+    conn.execute("DELETE FROM docs WHERE id = ?", (doc["id"],))
+    conn.commit()
+
+
 def list_docs(conn):
     return [dict(r) for r in conn.execute("SELECT * FROM docs").fetchall()]
 

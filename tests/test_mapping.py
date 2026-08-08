@@ -45,6 +45,22 @@ def test_save_mapping_upserts_on_same_spreadsheet_id(tmp_path):
     assert len(docs) == 1
     assert docs[0]["label"] == "New Label"
 
+def test_delete_doc_removes_doc_and_known_tabs(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    mapping.mark_tab_known(conn, doc_id, "111", "August")
+
+    mapping.delete_doc(conn, "SHEET1")
+
+    assert mapping.get_doc(conn, "SHEET1") is None
+    assert mapping.known_tab_gids(conn, doc_id) == set()
+
+
+def test_delete_doc_missing_spreadsheet_id_is_noop(tmp_path):
+    conn = db_mod.init_db(str(tmp_path / "t.db"))
+    mapping.delete_doc(conn, "NOPE")  # should not raise
+
+
 def test_mark_and_list_known_tabs(tmp_path):
     conn = db_mod.init_db(str(tmp_path / "t.db"))
     doc_id = mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)

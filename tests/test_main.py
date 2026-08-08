@@ -142,6 +142,28 @@ def test_api_sheets_tabs_returns_tabs(tmp_path, monkeypatch):
     assert resp.json() == {"tabs": [{"gid": "111", "title": "August"}]}
 
 
+def test_delete_doc_requires_login(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    resp = client.post("/sheets/SHEET1/delete")
+    assert resp.status_code == 401
+
+
+def test_delete_doc_removes_it_from_list(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    client.post("/login", data={"username": "manager", "password": "secret"})
+
+    conn = main.db.init_db(config.DB_PATH)
+    main.mapping.save_mapping(conn, "SHEET1", "Branch A", 0, 0, 1, 31)
+    conn.close()
+
+    resp = client.post("/sheets/SHEET1/delete", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/sheets"
+
+    resp2 = client.get("/sheets")
+    assert "SHEET1" not in resp2.text
+
+
 def test_configure_saves_mapping_and_lists_doc(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     client.post("/login", data={"username": "manager", "password": "secret"})

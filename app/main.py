@@ -172,6 +172,18 @@ def sheets_page(request: Request):
     return templates.TemplateResponse(request, "sheets.html", {"docs": docs})
 
 
+@app.post("/sheets/{spreadsheet_id}/delete")
+def delete_doc(request: Request, spreadsheet_id: str):
+    if not _user(request):
+        raise HTTPException(status_code=401)
+    conn = db.init_db(config.DB_PATH)
+    try:
+        mapping.delete_doc(conn, spreadsheet_id)
+    finally:
+        conn.close()
+    return RedirectResponse("/sheets", status_code=303)
+
+
 @app.post("/api/sheets/tabs")
 def api_sheets_tabs(request: Request, payload: SheetTabsRequest):
     if not _user(request):

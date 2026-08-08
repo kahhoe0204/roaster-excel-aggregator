@@ -29,10 +29,14 @@
     {% if docs %}
       <div class="table-wrap">
         <table class="ledger">
-          <thead><tr><th>Label</th><th>Spreadsheet ID</th></tr></thead>
+          <thead><tr><th>Label</th><th>Spreadsheet ID</th><th></th></tr></thead>
           <tbody>
             {% for d in docs %}
-            <tr><td>{{ d.label }}</td><td>{{ d.spreadsheet_id }}</td></tr>
+            <tr>
+              <td>{{ d.label }}</td>
+              <td>{{ d.spreadsheet_id }}</td>
+              <td><button type="button" class="btn" onclick="deleteDoc('{{ d.spreadsheet_id }}')">Delete</button></td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
@@ -53,6 +57,12 @@
     function extractSpreadsheetId(value) {
       const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
       return match ? match[1] : value;
+    }
+
+    async function deleteDoc(spreadsheetId) {
+      if (!confirm('Delete this doc?')) return;
+      await fetch(`/sheets/${spreadsheetId}/delete`, { method: 'POST' });
+      location.reload();
     }
 
     async function syncNow() {
